@@ -19,6 +19,11 @@ class Command(BaseCommand):
             help="Custom bounding box as: min_lon,min_lat,max_lon,max_lat",
         )
         parser.add_argument(
+            "--test-region",
+            action="store_true",
+            help="Import from a small test region in Utrecht around coordinate 52.11695/5.21434",
+        )
+        parser.add_argument(
             "--clear",
             action="store_true",
             help="Clear existing nature reserves before importing",
@@ -32,11 +37,15 @@ class Command(BaseCommand):
 
         netherlands_bbox = (3.2, 50.75, 7.2, 53.7)
         utrecht_bbox = (4.8, 51.9, 5.5, 52.3)
+        test_region_bbox = (5.14134, 52.07195, 5.28734, 52.16195)
 
         bbox = netherlands_bbox
         bbox_name = "Netherlands"
 
-        if options["province"] == "utrecht":
+        if options["test_region"]:
+            bbox = test_region_bbox
+            bbox_name = "test region (Utrecht, 52.11695/5.21434)"
+        elif options["province"] == "utrecht":
             bbox = utrecht_bbox
             bbox_name = "Utrecht province"
         elif options["bbox"]:

@@ -19,3 +19,31 @@ class NatureReserve(models.Model):
 
     def __str__(self) -> str:
         return self.name or self.id
+
+    @property
+    def bounds(self) -> dict | None:
+        return self.osm_data.get("bounds")
+
+    @property
+    def geometry(self) -> list | None:
+        return self.osm_data.get("geometry")
+
+    @property
+    def operator(self) -> str | None:
+        tags = self.osm_data.get("tags", {})
+        return tags.get("operator")
+
+    @property
+    def website(self) -> str | None:
+        tags = self.osm_data.get("tags", {})
+        return tags.get("website")
+
+    @property
+    def wikidata(self) -> str | None:
+        tags = self.osm_data.get("tags", {})
+        return tags.get("wikidata")
+
+    @property
+    def wikipedia(self) -> str | None:
+        tags = self.osm_data.get("tags", {})
+        return tags.get("wikipedia")

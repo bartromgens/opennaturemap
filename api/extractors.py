@@ -128,25 +128,86 @@ out geom;"""
         else:
             return "other"
 
-    def parse_elements(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def parse_elements(self, data: Dict[str, Any], output_callback: Optional[Callable[[str], None]] = None) -> List[Dict[str, Any]]:
         geojson_data = osm2geojson.json2geojson(data, filter_used_refs=True)
 
         reserves: List[Dict[str, Any]] = []
         features = geojson_data.get("features", [])
-        elements_by_id = {elem["id"]: elem for elem in data.get("elements", [])}
+        
+        if output_callback:
+            output_callback(f"Converted to {len(features)} GeoJSON features")
+        
+        elements_by_id = {}
+        for elem in data.get("elements", []):
+            elem_type = elem.get("type", "way")
+            elem_id = elem.get("id")
+            if elem_id is not None:
+                elements_by_id[f"{elem_type}_{elem_id}"] = elem
+                elements_by_id[str(elem_id)] = elem
 
+        filtered_count = 0
+        no_geometry_count = 0
+        no_tags_count = 0
+        node_count = 0
+        
         for feature in features:
             properties = feature.get("properties", {})
             geometry = feature.get("geometry")
+            element_type_prop = properties.get("@type", properties.get("type", "unknown"))
 
             if geometry is None:
+                no_geometry_count += 1
+                filtered_count += 1
                 continue
 
-            tags = {
+            if element_type_prop == "node":
+                node_count += 1
+                filtered_count += 1
+                continue
+
+            element_id = properties.get("@id") or properties.get("id")
+            element_type = properties.get("@type", "way")
+            
+            if isinstance(element_id, (int, float)):
+                element_id_str = f"{element_type}_{int(element_id)}"
+            else:
+                element_id_str = str(element_id)
+
+            osm_element = None
+            if element_id_str in elements_by_id:
+                osm_element = elements_by_id[element_id_str]
+            elif isinstance(element_id, (int, float)) and str(int(element_id)) in elements_by_id:
+                osm_element = elements_by_id[str(int(element_id))]
+            else:
+                for elem in data.get("elements", []):
+                    elem_type_match = elem.get("type", "way")
+                    elem_id_match = elem.get("id")
+                    if elem_id_match is not None:
+                        if (elem_type_match == element_type and 
+                            (elem_id_match == element_id or 
+                             f"{elem_type_match}_{elem_id_match}" == element_id_str or
+                             str(elem_id_match) == str(element_id))):
+                            osm_element = elem
+                            break
+
+            osm_tags = {}
+            if osm_element:
+                osm_tags = osm_element.get("tags", {})
+            else:
+                osm_element = {
+                    "type": element_type,
+                    "id": int(element_id) if isinstance(element_id, (int, float)) else None,
+                    "tags": {},
+                    "geometry": geometry,
+                }
+
+            geojson_tags = {
                 k: v
                 for k, v in properties.items()
                 if k not in ["id", "type", "@id", "@type"]
             }
+            
+            tags = {**geojson_tags, **osm_tags}
 
             if not any(
                 key in tags
@@ -158,25 +219,8 @@ out geom;"""
                     "natural",
                 ]
             ):
-                continue
-
-            element_id = properties.get("@id") or properties.get("id")
-            if isinstance(element_id, (int, float)):
-                element_type = properties.get("@type", "way")
-                element_id = f"{element_type}_{int(element_id)}"
-
-            element_id_str = str(element_id)
-
-            osm_element = None
-            for elem in data.get("elements", []):
-                elem_id = f"{elem.get('type', 'way')}_{elem.get('id', '')}"
-                if elem_id == element_id_str or str(elem.get("id", "")) == str(
-                    element_id
-                ):
-                    osm_element = elem
-                    break
-
-            if not osm_element:
+                no_tags_count += 1
+                filtered_count += 1
                 continue
 
             reserve = {
@@ -189,6 +233,12 @@ out geom;"""
             }
             reserves.append(reserve)
 
+        if output_callback:
+            output_callback(
+                f"Filtered out {filtered_count} features: "
+                f"{node_count} nodes, {no_geometry_count} no geometry, {no_tags_count} missing tags"
+            )
+
         return reserves
 
     def extract(
@@ -199,4 +249,14 @@ out geom;"""
     ) -> List[Dict[str, Any]]:
         query = self.build_query(bbox, tags)
         data = self.query_overpass(query, output_callback=output_callback)
-        return self.parse_elements(data)
+        
+        if output_callback:
+            elements_count = len(data.get("elements", []))
+            output_callback(f"Received {elements_count} elements from Overpass API")
+        
+        reserves = self.parse_elements(data, output_callback=output_callback)
+        
+        if output_callback:
+            output_callback(f"Parsed {len(reserves)} nature reserves from elements")
+        
+        return reserves
