@@ -1,1 +1,2 @@
 requests>=2.31.0
+osm2geojson>=0.3.0

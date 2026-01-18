@@ -3,6 +3,7 @@ import requests
 import time
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
+import osm2geojson
 
 
 @dataclass
@@ -107,58 +108,6 @@ out geom;"""
             f"Failed to query Overpass API after {self.max_retries} attempts across {len(servers_to_try)} servers"
         )
 
-    def extract_geometry(self, element: Dict[str, Any], all_elements: Dict[str, Dict[str, Any]] = None) -> Dict[str, Any]:
-        if element["type"] == "way":
-            if "geometry" in element:
-                coordinates = [[node["lon"], node["lat"]] for node in element["geometry"]]
-                if len(coordinates) > 2 and coordinates[0] == coordinates[-1]:
-                    return {
-                        "type": "Polygon",
-                        "coordinates": [coordinates]
-                    }
-                elif len(coordinates) > 1:
-                    return {
-                        "type": "LineString",
-                        "coordinates": coordinates
-                    }
-        elif element["type"] == "relation":
-            if all_elements is None:
-                return None
-                
-            members = element.get("members", [])
-            outer_ways = []
-            
-            for member in members:
-                if member.get("type") == "way" and member.get("role") in ["outer", ""]:
-                    way_id = f"way_{member['ref']}"
-                    if way_id in all_elements:
-                        way = all_elements[way_id]
-                        if "geometry" in way:
-                            outer_ways.append(way)
-            
-            if outer_ways:
-                polygons = []
-                for way in outer_ways:
-                    coords = [[node["lon"], node["lat"]] for node in way["geometry"]]
-                    if len(coords) > 2:
-                        if coords[0] != coords[-1]:
-                            coords.append(coords[0])
-                        polygons.append(coords)
-                
-                if polygons:
-                    if len(polygons) == 1:
-                        return {
-                            "type": "Polygon",
-                            "coordinates": polygons
-                        }
-                    else:
-                        return {
-                            "type": "MultiPolygon",
-                            "coordinates": [polygons]
-                        }
-        
-        return None
-
     def determine_area_type(self, tags: Dict[str, str]) -> str:
         if tags.get("leisure") == "nature_reserve":
             return "nature_reserve"
@@ -171,41 +120,36 @@ out geom;"""
             return "other"
 
     def parse_elements(self, data: Dict[str, Any]) -> List[NatureReserve]:
-        reserves: List[NatureReserve] = []
-        elements = data.get("elements", [])
+        geojson_data = osm2geojson.json2geojson(data, filter_used_refs=True)
         
-        element_dict = {}
-        for element in elements:
-            key = f"{element['type']}_{element['id']}"
-            element_dict[key] = element
-
-        processed_ids = set()
-        for element in elements:
-            if "tags" not in element:
+        reserves: List[NatureReserve] = []
+        features = geojson_data.get("features", [])
+        
+        for feature in features:
+            properties = feature.get("properties", {})
+            geometry = feature.get("geometry")
+            
+            if geometry is None:
                 continue
-                
-            tags = element.get("tags", {})
+            
+            tags = {k: v for k, v in properties.items() if k not in ["id", "type", "@id", "@type"]}
             
             if not any(key in tags for key in ["leisure", "boundary", "landuse", "protect_class", "natural"]):
                 continue
-
-            element_id = f"{element['type']}_{element['id']}"
-            if element_id in processed_ids:
-                continue
-
-            geometry = self.extract_geometry(element, element_dict)
-            if geometry is None:
-                continue
-
+            
+            element_id = properties.get("@id") or properties.get("id") or f"feature_{len(reserves)}"
+            if isinstance(element_id, (int, float)):
+                element_type = properties.get("@type", "way")
+                element_id = f"{element_type}_{int(element_id)}"
+            
             reserve = NatureReserve(
-                id=element_id,
+                id=str(element_id),
                 name=tags.get("name") or tags.get("name:en") or None,
                 geometry=geometry,
                 tags=tags,
                 area_type=self.determine_area_type(tags)
             )
             reserves.append(reserve)
-            processed_ids.add(element_id)
 
         return reserves
 
