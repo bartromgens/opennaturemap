@@ -1,7 +1,6 @@
 import requests
 import time
 from typing import List, Dict, Any, Optional, Callable
-import osm2geojson
 
 
 class OSMNatureReserveExtractor:
@@ -128,86 +127,107 @@ out geom;"""
         else:
             return "other"
 
-    def parse_elements(self, data: Dict[str, Any], output_callback: Optional[Callable[[str], None]] = None) -> List[Dict[str, Any]]:
-        geojson_data = osm2geojson.json2geojson(data, filter_used_refs=True)
+    def extract_relation_geometry(
+        self, relation: Dict[str, Any], all_elements: List[Dict[str, Any]]
+    ) -> Optional[List[Any]]:
+        """Extract geometry from a relation by constructing it from member ways."""
+        geometry = relation.get("geometry")
+        if geometry:
+            return geometry
 
+        members = relation.get("members", [])
+        if not members:
+            return None
+
+        # Build a map of way IDs to their geometries for quick lookup
+        way_geometries: Dict[int, list] = {}
+        for elem in all_elements:
+            if elem.get("type") == "way" and "geometry" in elem:
+                way_id = elem.get("id")
+                if way_id is not None:
+                    way_geometries[int(way_id)] = elem.get("geometry", [])
+
+        # Collect outer and inner rings
+        outer_rings: List[List[Dict[str, float]]] = []
+        inner_rings: List[List[Dict[str, float]]] = []
+
+        for member in members:
+            if member.get("type") != "way":
+                continue
+
+            way_ref = member.get("ref")
+            if way_ref is None:
+                continue
+
+            way_geom = way_geometries.get(int(way_ref))
+            if not way_geom:
+                continue
+
+            role = member.get("role", "")
+            if role == "outer":
+                outer_rings.append(way_geom)
+            elif role == "inner":
+                inner_rings.append(way_geom)
+
+        if not outer_rings:
+            return None
+
+        # For multipolygon, combine all rings
+        # If there's only one outer ring, return it directly (with inner rings if any)
+        if len(outer_rings) == 1 and not inner_rings:
+            return outer_rings[0]
+
+        # For multiple rings, we need to structure as MultiPolygon
+        # Return as a list of polygons (each polygon is [outer, inner1, inner2, ...])
+        result: List[List[List[Dict[str, float]]]] = []
+        for outer in outer_rings:
+            polygon = [outer]
+            # Associate inner rings with the nearest outer ring (simplified)
+            # In a full implementation, we'd check which inner rings are inside which outer
+            result.append(polygon)
+
+        # If we have inner rings but only one outer, add them to that outer
+        if len(result) == 1 and inner_rings:
+            result[0].extend(inner_rings)
+
+        return result if len(result) > 1 else (result[0] if result else None)
+
+    def parse_elements(
+        self,
+        data: Dict[str, Any],
+        output_callback: Optional[Callable[[str], None]] = None,
+    ) -> List[Dict[str, Any]]:
         reserves: List[Dict[str, Any]] = []
-        features = geojson_data.get("features", [])
-        
+        elements = data.get("elements", [])
+
         if output_callback:
-            output_callback(f"Converted to {len(features)} GeoJSON features")
-        
-        elements_by_id = {}
-        for elem in data.get("elements", []):
-            elem_type = elem.get("type", "way")
-            elem_id = elem.get("id")
-            if elem_id is not None:
-                elements_by_id[f"{elem_type}_{elem_id}"] = elem
-                elements_by_id[str(elem_id)] = elem
+            output_callback(f"Processing {len(elements)} OSM elements")
 
         filtered_count = 0
         no_geometry_count = 0
         no_tags_count = 0
         node_count = 0
-        
-        for feature in features:
-            properties = feature.get("properties", {})
-            geometry = feature.get("geometry")
-            element_type_prop = properties.get("@type", properties.get("type", "unknown"))
+        relation_count = 0
 
-            if geometry is None:
-                no_geometry_count += 1
-                filtered_count += 1
-                continue
+        for elem in elements:
+            elem_type = elem.get("type")
+            elem_id = elem.get("id")
 
-            if element_type_prop == "node":
+            if elem_type == "node":
                 node_count += 1
                 filtered_count += 1
                 continue
 
-            element_id = properties.get("@id") or properties.get("id")
-            element_type = properties.get("@type", "way")
-            
-            if isinstance(element_id, (int, float)):
-                element_id_str = f"{element_type}_{int(element_id)}"
-            else:
-                element_id_str = str(element_id)
+            if elem_id is None:
+                filtered_count += 1
+                continue
 
-            osm_element = None
-            if element_id_str in elements_by_id:
-                osm_element = elements_by_id[element_id_str]
-            elif isinstance(element_id, (int, float)) and str(int(element_id)) in elements_by_id:
-                osm_element = elements_by_id[str(int(element_id))]
+            if isinstance(elem_id, (int, float)):
+                element_id_str = f"{elem_type}_{int(elem_id)}"
             else:
-                for elem in data.get("elements", []):
-                    elem_type_match = elem.get("type", "way")
-                    elem_id_match = elem.get("id")
-                    if elem_id_match is not None:
-                        if (elem_type_match == element_type and 
-                            (elem_id_match == element_id or 
-                             f"{elem_type_match}_{elem_id_match}" == element_id_str or
-                             str(elem_id_match) == str(element_id))):
-                            osm_element = elem
-                            break
+                element_id_str = str(elem_id)
 
-            osm_tags = {}
-            if osm_element:
-                osm_tags = osm_element.get("tags", {})
-            else:
-                osm_element = {
-                    "type": element_type,
-                    "id": int(element_id) if isinstance(element_id, (int, float)) else None,
-                    "tags": {},
-                    "geometry": geometry,
-                }
-
-            geojson_tags = {
-                k: v
-                for k, v in properties.items()
-                if k not in ["id", "type", "@id", "@type"]
-            }
-            
-            tags = {**geojson_tags, **osm_tags}
+            tags = elem.get("tags", {})
 
             if not any(
                 key in tags
@@ -223,10 +243,28 @@ out geom;"""
                 filtered_count += 1
                 continue
 
+            # Handle geometry extraction
+            geometry = elem.get("geometry")
+            
+            # For relations (especially multipolygons), try to extract geometry from members
+            if elem_type == "relation" and (geometry is None or geometry == []):
+                relation_count += 1
+                geometry = self.extract_relation_geometry(elem, elements)
+                if geometry is None:
+                    no_geometry_count += 1
+                    filtered_count += 1
+                    continue
+
+            # For ways, geometry is required
+            if elem_type == "way" and geometry is None:
+                no_geometry_count += 1
+                filtered_count += 1
+                continue
+
             reserve = {
                 "id": element_id_str,
                 "name": tags.get("name") or tags.get("name:en") or None,
-                "osm_data": osm_element,
+                "osm_data": elem,
                 "geometry": geometry,
                 "tags": tags,
                 "area_type": self.determine_area_type(tags),
@@ -235,9 +273,11 @@ out geom;"""
 
         if output_callback:
             output_callback(
-                f"Filtered out {filtered_count} features: "
+                f"Filtered out {filtered_count} elements: "
                 f"{node_count} nodes, {no_geometry_count} no geometry, {no_tags_count} missing tags"
             )
+            if relation_count > 0:
+                output_callback(f"Processed {relation_count} relations")
 
         return reserves
 
@@ -249,14 +289,14 @@ out geom;"""
     ) -> List[Dict[str, Any]]:
         query = self.build_query(bbox, tags)
         data = self.query_overpass(query, output_callback=output_callback)
-        
+
         if output_callback:
             elements_count = len(data.get("elements", []))
             output_callback(f"Received {elements_count} elements from Overpass API")
-        
+
         reserves = self.parse_elements(data, output_callback=output_callback)
-        
+
         if output_callback:
             output_callback(f"Parsed {len(reserves)} nature reserves from elements")
-        
+
         return reserves

@@ -1,11 +1,8 @@
 from rest_framework import serializers
-import osm2geojson
 from .models import NatureReserve
 
 
 class NatureReserveSerializer(serializers.ModelSerializer):
-    geometry = serializers.SerializerMethodField()
-
     class Meta:
         model = NatureReserve
         fields = [
@@ -18,16 +15,6 @@ class NatureReserveSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["created_at", "updated_at"]
-
-    def get_geometry(self, obj) -> dict:
-        osm_element = obj.osm_data
-        geojson_data = osm2geojson.json2geojson(
-            {"elements": [osm_element]}, filter_used_refs=True
-        )
-        features = geojson_data.get("features", [])
-        if features:
-            return features[0].get("geometry")
-        return None
 
 
 class NatureReserveGeoJSONSerializer(serializers.Serializer):
