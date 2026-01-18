@@ -106,8 +106,14 @@ logs/
 .env.local
 .env.*.local
 
+# Django local settings
+config/settings_local.py
+
 # Build outputs
 build/
 dist/
 *.min.js
 *.min.css
+
+# Project specific
+*.geojson
