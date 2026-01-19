@@ -1,18 +1,87 @@
 import requests
 import time
+import random
 from typing import List, Dict, Any, Optional, Callable
 
 
-class OSMNatureReserveExtractor:
-    def __init__(self, overpass_url: str = "https://overpass-api.de/api/interpreter"):
-        self.overpass_url = overpass_url
-        self.overpass_servers = [
-            "https://overpass-api.de/api/interpreter",
-            "https://overpass.kumi.systems/api/interpreter",
-            "https://overpass.openstreetmap.ru/api/interpreter",
+USER_AGENT = "OpenNatureMap/1.0 (https://github.com/bartromgens/opennaturemap; contact@example.com)"
+
+
+class ServerManager:
+    DEFAULT_SERVERS = [
+        "https://overpass-api.de/api/interpreter",  # Germany
+        "https://osm.hpi.de/overpass/api/interpreter",  # Germany (Potsdam)
+        "https://overpass.private.coffee/api/interpreter",  # Austria
+        "https://overpass.openstreetmap.jp/api/interpreter",  # Japan (fallback)
+    ]
+
+    def __init__(
+        self,
+        servers: Optional[List[str]] = None,
+        max_consecutive_failures: int = 3,
+    ):
+        self.servers = servers if servers is not None else self.DEFAULT_SERVERS
+        self.max_consecutive_failures = max_consecutive_failures
+        self._server_index = 0
+        self._server_failures: Dict[str, int] = {}
+
+    def get_servers_for_query(
+        self, output_callback: Optional[Callable[[str], None]] = None
+    ) -> List[str]:
+        # Rotate through servers: start with a different server for each query
+        rotated_servers = (
+            self.servers[self._server_index :] + self.servers[: self._server_index]
+        )
+        self._server_index = (self._server_index + 1) % len(self.servers)
+
+        # Filter out servers that have failed too many times
+        skipped_servers = [
+            s
+            for s in rotated_servers
+            if self._server_failures.get(s, 0) >= self.max_consecutive_failures
         ]
+        available_servers = [
+            s
+            for s in rotated_servers
+            if self._server_failures.get(s, 0) < self.max_consecutive_failures
+        ]
+
+        if skipped_servers and output_callback:
+            output_callback(
+                f"Skipping {len(skipped_servers)} server(s) due to consistent failures: {', '.join(skipped_servers)}"
+            )
+
+        # If all servers are filtered out, reset failures and try all servers
+        if not available_servers:
+            if output_callback:
+                output_callback(
+                    "All servers have failed consistently, resetting and trying all servers again..."
+                )
+            self._server_failures.clear()
+            available_servers = rotated_servers
+
+        return available_servers
+
+    def record_failure(self, server_url: str) -> None:
+        self._server_failures[server_url] = self._server_failures.get(server_url, 0) + 1
+
+    def record_success(self, server_url: str) -> None:
+        self._server_failures[server_url] = 0
+
+
+class OSMNatureReserveExtractor:
+    def __init__(
+        self,
+        overpass_url: str = "https://overpass-api.de/api/interpreter",
+        user_agent: Optional[str] = None,
+    ):
+        self.overpass_url = overpass_url
+        self.server_manager = ServerManager()
         self.timeout = 180
         self.max_retries = 3
+        self.user_agent = user_agent or USER_AGENT
+        self.base_delay = 1.0
+        self.max_delay = 300.0
 
     def build_query(
         self,
@@ -23,6 +92,7 @@ class OSMNatureReserveExtractor:
             tags = [
                 ("leisure", "nature_reserve"),
                 ("boundary", "protected_area"),
+                ("boundary", "national_park"),
                 ("landuse", "conservation"),
             ]
 
@@ -55,38 +125,72 @@ out geom;"""
         if output_callback is None:
             output_callback = print
 
-        servers_to_try = [self.overpass_url] + [
-            s for s in self.overpass_servers if s != self.overpass_url
-        ]
+        servers_to_try = self.server_manager.get_servers_for_query(output_callback)
 
         for attempt in range(self.max_retries):
-            for server_url in servers_to_try:
+            for idx, server_url in enumerate(servers_to_try):
                 try:
                     if attempt > 0:
-                        wait_time = 2**attempt
+                        wait_time = self._calculate_backoff(attempt)
                         output_callback(
-                            f"Retrying in {wait_time} seconds... (attempt {attempt + 1}/{self.max_retries})"
+                            f"Retrying in {wait_time:.1f} seconds... (attempt {attempt + 1}/{self.max_retries})"
                         )
                         time.sleep(wait_time)
+                    elif idx > 0:
+                        time.sleep(0.5)
 
                     output_callback(f"Querying Overpass API: {server_url}")
+                    headers = {"User-Agent": self.user_agent}
                     response = requests.post(
-                        server_url, data={"data": query}, timeout=self.timeout + 30
+                        server_url,
+                        data={"data": query},
+                        headers=headers,
+                        timeout=self.timeout + 30,
                     )
 
                     if response.status_code == 200:
-                        return response.json()
+                        try:
+                            data = response.json()
+                            if not data or "elements" not in data:
+                                output_callback(
+                                    f"Empty or invalid response from {server_url}, trying next server..."
+                                )
+                                self.server_manager.record_failure(server_url)
+                                continue
+                            # Success: reset failure count for this server
+                            self.server_manager.record_success(server_url)
+                            return data
+                        except ValueError as e:
+                            output_callback(
+                                f"Invalid JSON response from {server_url}: {e}, trying next server..."
+                            )
+                            self.server_manager.record_failure(server_url)
+                            continue
                     elif response.status_code == 504:
                         output_callback(
                             f"Server timeout (504) from {server_url}, trying next server..."
                         )
+                        self.server_manager.record_failure(server_url)
                         continue
                     elif response.status_code == 429:
-                        wait_time = 60 * (attempt + 1)
+                        wait_time = self._get_retry_after(
+                            response, default=60 * (attempt + 1)
+                        )
                         output_callback(
-                            f"Rate limited (429), waiting {wait_time} seconds..."
+                            f"Rate limited (429), waiting {wait_time:.1f} seconds..."
                         )
                         time.sleep(wait_time)
+                        # Don't count rate limiting as a failure (it's temporary)
+                        continue
+                    elif response.status_code == 503:
+                        wait_time = self._get_retry_after(
+                            response, default=30 * (attempt + 1)
+                        )
+                        output_callback(
+                            f"Service unavailable (503), waiting {wait_time:.1f} seconds..."
+                        )
+                        time.sleep(wait_time)
+                        # Don't count service unavailable as a failure (it's temporary)
                         continue
                     else:
                         error_msg = (
@@ -94,31 +198,62 @@ out geom;"""
                         )
                         if response.status_code == 400:
                             error_msg += f"\n\nQuery that failed:\n{query}"
-                        raise requests.exceptions.HTTPError(error_msg)
+                        self.server_manager.record_failure(server_url)
+                        if (
+                            attempt == self.max_retries - 1
+                            and server_url == servers_to_try[-1]
+                        ):
+                            raise requests.exceptions.HTTPError(error_msg)
+                        output_callback(
+                            f"HTTP error from {server_url}: {error_msg}, trying next server..."
+                        )
+                        continue
 
                 except requests.exceptions.Timeout:
                     output_callback(
                         f"Request timeout from {server_url}, trying next server..."
                     )
+                    self.server_manager.record_failure(server_url)
                     continue
                 except requests.exceptions.RequestException as e:
                     if (
                         attempt == self.max_retries - 1
                         and server_url == servers_to_try[-1]
                     ):
+                        self.server_manager.record_failure(server_url)
                         raise
                     output_callback(
                         f"Request error from {server_url}: {e}, trying next server..."
                     )
+                    self.server_manager.record_failure(server_url)
                     continue
 
         raise requests.exceptions.RequestException(
             f"Failed to query Overpass API after {self.max_retries} attempts across {len(servers_to_try)} servers"
         )
 
+    def _calculate_backoff(self, attempt: int) -> float:
+        """Calculate exponential backoff with jitter."""
+        exponential_delay = min(self.base_delay * (2**attempt), self.max_delay)
+        jitter = random.uniform(0, exponential_delay * 0.1)
+        return exponential_delay + jitter
+
+    def _get_retry_after(self, response: requests.Response, default: float) -> float:
+        """Extract Retry-After header value or use default."""
+        retry_after = response.headers.get("Retry-After")
+        if retry_after:
+            try:
+                return float(retry_after)
+            except ValueError:
+                pass
+        return default
+
     def determine_area_type(self, tags: Dict[str, str]) -> str:
         if tags.get("leisure") == "nature_reserve":
             return "nature_reserve"
+        elif tags.get("boundary") == "national_park":
+            protect_class = tags.get("protect_class", "unknown")
+            return f"national_park_class_{protect_class}"
         elif tags.get("boundary") == "protected_area":
             protect_class = tags.get("protect_class", "unknown")
             return f"protected_area_class_{protect_class}"
@@ -132,7 +267,7 @@ out geom;"""
     ) -> Optional[List[Any]]:
         """Extract geometry from a relation by constructing it from member ways."""
         geometry = relation.get("geometry")
-        if geometry:
+        if geometry and len(geometry) > 0:
             return geometry
 
         members = relation.get("members", [])
@@ -150,6 +285,7 @@ out geom;"""
         # Collect outer and inner rings
         outer_rings: List[List[Dict[str, float]]] = []
         inner_rings: List[List[Dict[str, float]]] = []
+        missing_ways: List[int] = []
 
         for member in members:
             if member.get("type") != "way":
@@ -161,6 +297,7 @@ out geom;"""
 
             way_geom = way_geometries.get(int(way_ref))
             if not way_geom:
+                missing_ways.append(int(way_ref))
                 continue
 
             role = member.get("role", "")
@@ -170,6 +307,8 @@ out geom;"""
                 inner_rings.append(way_geom)
 
         if not outer_rings:
+            if missing_ways:
+                return None
             return None
 
         # For multipolygon, combine all rings
@@ -245,15 +384,24 @@ out geom;"""
 
             # Handle geometry extraction
             geometry = elem.get("geometry")
-            
+
             # For relations (especially multipolygons), try to extract geometry from members
-            if elem_type == "relation" and (geometry is None or geometry == []):
+            if elem_type == "relation":
                 relation_count += 1
-                geometry = self.extract_relation_geometry(elem, elements)
-                if geometry is None:
-                    no_geometry_count += 1
-                    filtered_count += 1
-                    continue
+                # If no geometry or empty geometry, try to extract from members
+                if geometry is None or geometry == []:
+                    geometry = self.extract_relation_geometry(elem, elements)
+                    if geometry is None:
+                        no_geometry_count += 1
+                        filtered_count += 1
+                        continue
+                # If geometry exists but is empty list, also try to extract from members
+                elif isinstance(geometry, list) and len(geometry) == 0:
+                    geometry = self.extract_relation_geometry(elem, elements)
+                    if geometry is None:
+                        no_geometry_count += 1
+                        filtered_count += 1
+                        continue
 
             # For ways, geometry is required
             if elem_type == "way" and geometry is None:

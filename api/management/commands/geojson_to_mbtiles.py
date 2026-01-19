@@ -4,6 +4,7 @@ import shutil
 from pathlib import Path
 from django.core.management.base import BaseCommand, CommandError
 from django.core.management import call_command
+from django.conf import settings
 import tempfile
 import os
 
@@ -15,13 +16,14 @@ class Command(BaseCommand):
         parser.add_argument(
             "--input",
             type=str,
-            help="Input GeoJSON file path (if not provided, will export from database first)",
+            default=str(settings.BASE_DIR / "data" / "nature_reserves.geojson"),
+            help="Input GeoJSON file path (default: data/nature_reserves.geojson)",
         )
         parser.add_argument(
             "--output",
             type=str,
-            default="nature_reserves.mbtiles",
-            help="Output MBTiles file path (default: nature_reserves.mbtiles)",
+            default=str(settings.BASE_DIR / "data" / "nature_reserves.mbtiles"),
+            help="Output MBTiles file path (default: data/nature_reserves.mbtiles)",
         )
         parser.add_argument(
             "--min-zoom",
@@ -54,26 +56,27 @@ class Command(BaseCommand):
         max_zoom = options["max_zoom"]
         layer_name = options["layer_name"]
         force = options["force"]
-        temp_geojson = None
 
         if output_path.exists() and not force:
             raise CommandError(
                 f"Output file {output_path} already exists. Use --force to overwrite."
             )
 
+        default_input = str(settings.BASE_DIR / "data" / "nature_reserves.geojson")
         if not input_path:
-            self.stdout.write("No input file provided, exporting GeoJSON from database...")
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".geojson", delete=False) as tmp:
-                temp_geojson = tmp.name
-            try:
-                call_command("export_geojson", output=temp_geojson)
-                input_path = temp_geojson
-            except Exception as e:
-                if temp_geojson and os.path.exists(temp_geojson):
-                    os.unlink(temp_geojson)
-                raise CommandError(f"Failed to export GeoJSON: {e}")
+            input_path = default_input
 
         input_path = Path(input_path)
+        if not input_path.exists():
+            self.stdout.write(
+                f"Input file {input_path} not found, exporting GeoJSON from database..."
+            )
+            input_path = Path(default_input)
+            try:
+                call_command("export_geojson", output=str(input_path))
+            except Exception as e:
+                raise CommandError(f"Failed to export GeoJSON: {e}")
+
         if not input_path.exists():
             raise CommandError(f"Input file {input_path} does not exist")
 
@@ -101,10 +104,14 @@ class Command(BaseCommand):
 
             tippecanoe_cmd = [
                 tippecanoe_path,
-                "--output", str(output_path),
-                "--layer", layer_name,
-                "--minimum-zoom", str(min_zoom),
-                "--maximum-zoom", str(max_zoom),
+                "--output",
+                str(output_path),
+                "--layer",
+                layer_name,
+                "--minimum-zoom",
+                str(min_zoom),
+                "--maximum-zoom",
+                str(max_zoom),
                 str(input_path),
             ]
 
@@ -138,14 +145,10 @@ class Command(BaseCommand):
                 "  macOS: brew install tippecanoe\n"
                 "  Or build from source: https://github.com/felt/tippecanoe"
             )
-        finally:
-            if temp_geojson and os.path.exists(temp_geojson):
-                os.unlink(temp_geojson)
-                self.stdout.write("Cleaned up temporary GeoJSON file")
 
     def _find_tippecanoe(self):
         tippecanoe_path = shutil.which("tippecanoe")
-        
+
         if not tippecanoe_path:
             common_paths = [
                 "/usr/local/bin/tippecanoe",
@@ -156,7 +159,7 @@ class Command(BaseCommand):
                 if os.path.exists(path) and os.access(path, os.X_OK):
                     tippecanoe_path = path
                     break
-        
+
         if not tippecanoe_path:
             raise CommandError(
                 "tippecanoe is not installed or not in PATH.\n"
@@ -165,13 +168,13 @@ class Command(BaseCommand):
                 "  macOS: brew install tippecanoe\n"
                 "  Or build from source: https://github.com/felt/tippecanoe"
             )
-        
+
         if not os.path.exists(tippecanoe_path):
             raise CommandError(f"tippecanoe not found at {tippecanoe_path}")
-        
+
         if not os.access(tippecanoe_path, os.X_OK):
             raise CommandError(f"tippecanoe at {tippecanoe_path} is not executable")
-        
+
         result = subprocess.run(
             [tippecanoe_path, "--version"],
             capture_output=True,
@@ -190,5 +193,5 @@ class Command(BaseCommand):
                     f"Could not verify tippecanoe version, but will attempt to use {tippecanoe_path}"
                 )
             )
-        
+
         return tippecanoe_path

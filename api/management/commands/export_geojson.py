@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from django.core.management.base import BaseCommand
+from django.conf import settings
 from api.models import NatureReserve
 import osm2geojson
 
@@ -12,8 +13,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--output",
             type=str,
-            default="nature_reserves.geojson",
-            help="Output file path (default: nature_reserves.geojson)",
+            default=str(settings.BASE_DIR / "data" / "nature_reserves.geojson"),
+            help="Output file path (default: data/nature_reserves.geojson)",
         )
 
     def handle(self, *args, **options):

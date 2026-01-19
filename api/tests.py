@@ -1,9 +1,9 @@
 from unittest.mock import patch, MagicMock
 from django.test import TestCase
 from django.core.management import call_command
-from django.core.management.base import CommandError
 from io import StringIO
 from api.models import NatureReserve
+import json
 
 
 class ImportNatureReservesTest(TestCase):
@@ -203,3 +203,112 @@ class ImportNatureReservesTest(TestCase):
 
         output = out.getvalue()
         self.assertIn("Cleared 1 existing nature reserves", output)
+
+    @patch("api.extractors.requests.post")
+    def test_import_relation_7010743_de_deelen(self, mock_post):
+        """Test that relation 7010743 (De Deelen) is imported correctly.
+
+        This relation has both boundary=protected_area and leisure=nature_reserve tags,
+        and is a multipolygon relation with member ways that need to be included.
+
+        This test mocks the HTTP request to Overpass API, allowing the full extraction
+        pipeline to run including parse_elements and extract_relation_geometry.
+        """
+        # Coordinates for De Deelen: ~53.0214° N, 5.9044° E
+        # Create a small bbox around this location
+        de_deelen_bbox = (5.8, 52.95, 6.0, 53.1)
+
+        # Mock Overpass API response with relation 7010743 and its member ways
+        mock_response_data = {
+            "elements": [
+                # The relation itself
+                {
+                    "type": "relation",
+                    "id": 7010743,
+                    "tags": {
+                        "boundary": "protected_area",
+                        "leisure": "nature_reserve",
+                        "name": "De Deelen",
+                        "protect_class": "97",
+                        "protection_title": "Natura 2000-gebied",
+                        "type": "multipolygon",
+                    },
+                    "members": [
+                        {"type": "way", "ref": 749016717, "role": "outer"},
+                        {"type": "way", "ref": 749016716, "role": "outer"},
+                    ],
+                    "geometry": [],  # Empty geometry, needs to be extracted from members
+                },
+                # Member way 749016717
+                {
+                    "type": "way",
+                    "id": 749016717,
+                    "geometry": [
+                        {"lat": 53.021, "lon": 5.904},
+                        {"lat": 53.022, "lon": 5.905},
+                        {"lat": 53.023, "lon": 5.904},
+                        {"lat": 53.021, "lon": 5.904},
+                    ],
+                },
+                # Member way 749016716
+                {
+                    "type": "way",
+                    "id": 749016716,
+                    "geometry": [
+                        {"lat": 53.020, "lon": 5.903},
+                        {"lat": 53.021, "lon": 5.904},
+                        {"lat": 53.020, "lon": 5.905},
+                        {"lat": 53.020, "lon": 5.903},
+                    ],
+                },
+            ]
+        }
+
+        # Mock the HTTP response
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = mock_response_data
+        mock_response.headers = {}
+        mock_post.return_value = mock_response
+
+        bbox_str = f"{de_deelen_bbox[0]},{de_deelen_bbox[1]},{de_deelen_bbox[2]},{de_deelen_bbox[3]}"
+
+        out = StringIO()
+        call_command("import_nature_reserves", "--bbox", bbox_str, stdout=out)
+
+        # Verify that the HTTP request was made
+        self.assertTrue(mock_post.called)
+        call_args = mock_post.call_args
+        self.assertIsNotNone(call_args)
+
+        # Verify the query includes the relation tags
+        query_data = call_args.kwargs.get("data", {}).get("data", "")
+        self.assertIn('relation["boundary"="protected_area"]', query_data)
+        self.assertIn('relation["leisure"="nature_reserve"]', query_data)
+
+        # Verify that the relation was imported
+        self.assertEqual(NatureReserve.objects.count(), 1)
+
+        reserve = NatureReserve.objects.get(id="relation_7010743")
+        self.assertEqual(reserve.name, "De Deelen")
+        self.assertEqual(
+            reserve.area_type, "nature_reserve"
+        )  # leisure=nature_reserve takes precedence
+        self.assertEqual(reserve.tags["boundary"], "protected_area")
+        self.assertEqual(reserve.tags["leisure"], "nature_reserve")
+        self.assertEqual(reserve.tags["protect_class"], "97")
+        self.assertIsNotNone(reserve.osm_data)
+        self.assertEqual(reserve.osm_data["id"], 7010743)
+        self.assertEqual(reserve.osm_data["type"], "relation")
+        # Verify that the relation has members (needed for geometry extraction)
+        self.assertIn("members", reserve.osm_data)
+        self.assertEqual(len(reserve.osm_data["members"]), 2)
+        # Verify that geometry was extracted (osm_data should contain the full element)
+        # The geometry should be in the reserve data structure, but since it's not
+        # stored separately in the model, we verify the relation was processed correctly
+        # by checking it was created (which means geometry extraction succeeded)
+
+        output = out.getvalue()
+        self.assertIn("Extracting nature reserves from OpenStreetMap", output)
+        self.assertIn("Found 1 nature reserves", output)
+        self.assertIn("Created: 1", output)
