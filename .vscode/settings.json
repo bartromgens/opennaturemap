@@ -1,11 +1,20 @@
 {
+    "editor.formatOnSave": true,
+    "python.defaultInterpreterPath": "${workspaceFolder}/env/bin/python",
     "[python]": {
         "editor.defaultFormatter": "ms-python.black-formatter",
-        "editor.formatOnSave": true,
         "editor.codeActionsOnSave": {
             "source.organizeImports": "explicit"
         }
     },
-    "black-formatter.args": [],
-    "python.defaultInterpreterPath": "${workspaceFolder}/env/bin/python"
+    "[typescript]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+      },
+      "[scss]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+      },
+      "[html]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+      }
+    }
 }

@@ -1,0 +1,22 @@
+---
+description: Project-wide conventions for opennaturemap
+alwaysApply: true
+---
+
+# OpenNatureMap – Project Rules
+
+## Documentation
+
+- Do **not** add docstrings or create README.md documentation unless the user explicitly asks for it.
+
+## End of Session
+
+- Review changes and remove duplicate code.
+- Extract functions and classes to improve readability and encapsulate logic.
+- When finishing a set of changes, **suggest a short commit message** at the end.
+
+## Python
+
+- **Formatting**: Use [Black](https://github.com/psf/black).
+- **Linting**: Use [Flake8](https://flake8.pycqa.org/) for style and lint checks.
+- **Type hints**: Add type hints.
