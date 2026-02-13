@@ -1,35 +1,37 @@
 import math
 import requests
+from datetime import timedelta
 from typing import List, Tuple
+
 from django.core.management.base import BaseCommand
-from api.models import NatureReserve
+from django.utils import timezone
+
 from api.extractors import OSMNatureReserveExtractor
+from api.models import ImportGrid, NatureReserve
+
+NETHERLANDS_BBOX: Tuple[float, float, float, float] = (3.2, 50.75, 7.2, 53.7)
 
 
 class Command(BaseCommand):
-    help = "Import nature reserves from OpenStreetMap using Overpass API"
+    help = (
+        "Import nature reserves from OpenStreetMap (Overpass API). "
+        "Default bbox is the Netherlands. Uses a grid of tiles for large areas; "
+        "grid state is stored so imports can be resumed and grids can be refreshed by age."
+    )
 
     TILE_SIZE_KM = 30.0
 
     def calculate_tile_size_degrees(self, center_lat: float) -> Tuple[float, float]:
-        # 1 degree of latitude ≈ 111 km (constant)
         lat_degrees = self.TILE_SIZE_KM / 111.0
-
-        # 1 degree of longitude ≈ 111 * cos(latitude) km
         lon_degrees = self.TILE_SIZE_KM / (111.0 * math.cos(math.radians(center_lat)))
-
         return (lon_degrees, lat_degrees)
 
     def should_split_bbox(self, bbox: Tuple[float, float, float, float]) -> bool:
         min_lon, min_lat, max_lon, max_lat = bbox
         center_lat = (min_lat + max_lat) / 2.0
-
         lon_degrees, lat_degrees = self.calculate_tile_size_degrees(center_lat)
-
         bbox_lon_span = max_lon - min_lon
         bbox_lat_span = max_lat - min_lat
-
-        # Split if the bbox is larger than one tile in either dimension
         return bbox_lon_span > lon_degrees or bbox_lat_span > lat_degrees
 
     def split_bbox_into_tiles(
@@ -37,24 +39,61 @@ class Command(BaseCommand):
     ) -> List[Tuple[float, float, float, float]]:
         min_lon, min_lat, max_lon, max_lat = bbox
         center_lat = (min_lat + max_lat) / 2.0
-
         lon_degrees, lat_degrees = self.calculate_tile_size_degrees(center_lat)
-
         tiles = []
         current_lat = min_lat
-
         while current_lat < max_lat:
             tile_max_lat = min(current_lat + lat_degrees, max_lat)
             current_lon = min_lon
-
             while current_lon < max_lon:
                 tile_max_lon = min(current_lon + lon_degrees, max_lon)
                 tiles.append((current_lon, current_lat, tile_max_lon, tile_max_lat))
                 current_lon += lon_degrees
-
             current_lat += lat_degrees
-
         return tiles
+
+    def should_skip_grid(
+        self,
+        grid: ImportGrid,
+        resume: bool,
+        min_age_hours: float | None,
+    ) -> bool:
+        if resume and grid.success:
+            return True
+        if min_age_hours is not None and grid.last_updated is not None:
+            if grid.last_updated >= timezone.now() - timedelta(hours=min_age_hours):
+                return True
+        return False
+
+    def process_tile_reserves(
+        self,
+        reserves: List[dict],
+        output_callback,
+    ) -> Tuple[int, int, int]:
+        created_count = 0
+        updated_count = 0
+        error_count = 0
+        for idx, reserve_data in enumerate(reserves, 1):
+            try:
+                _, created = NatureReserve.objects.update_or_create(
+                    id=reserve_data["id"],
+                    defaults={
+                        "name": reserve_data["name"],
+                        "osm_data": reserve_data["osm_data"],
+                        "tags": reserve_data["tags"],
+                        "area_type": reserve_data["area_type"],
+                    },
+                )
+                if created:
+                    created_count += 1
+                else:
+                    updated_count += 1
+                if idx % 100 == 0:
+                    output_callback(f"  Processed {idx}/{len(reserves)} reserves...")
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(f"  Reserve {idx}: Error - {e}"))
+                error_count += 1
+        return created_count, updated_count, error_count
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -65,7 +104,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--bbox",
             type=str,
-            help="Custom bounding box as: min_lon,min_lat,max_lon,max_lat",
+            help="Custom bounding box as: min_lon,min_lat,max_lon,max_lat (default: Netherlands)",
         )
         parser.add_argument(
             "--test-region",
@@ -82,6 +121,17 @@ class Command(BaseCommand):
             action="store_true",
             help="Clear existing nature reserves before importing",
         )
+        parser.add_argument(
+            "--resume",
+            action="store_true",
+            help="Skip grids that were successfully loaded last time (retry only failed or new grids)",
+        )
+        parser.add_argument(
+            "--min-age",
+            type=float,
+            metavar="HOURS",
+            help="Only process grids that were never updated or last updated more than HOURS ago",
+        )
 
     def handle(self, *args, **options):
         extractor = OSMNatureReserveExtractor()
@@ -89,13 +139,12 @@ class Command(BaseCommand):
         def output_callback(msg):
             self.stdout.write(msg)
 
-        netherlands_bbox = (3.2, 50.75, 7.2, 53.7)
         utrecht_bbox = (4.8, 51.9, 5.5, 52.3)
         friesland_bbox = (4.8697, 52.8008, 6.4288, 53.5112)
         test_region_bbox = (5.14134, 52.07195, 5.28734, 52.16195)
         de_deelen_bbox = (5.8, 52.95, 6.0, 53.1)
 
-        bbox = netherlands_bbox
+        bbox = NETHERLANDS_BBOX
         bbox_name = "Netherlands"
 
         if options["test_region"]:
@@ -138,19 +187,52 @@ class Command(BaseCommand):
                 self.style.SUCCESS(f"Cleared {count} existing nature reserves")
             )
 
-        self.stdout.write(f"Extracting nature reserves from OpenStreetMap...")
+        self.stdout.write("Extracting nature reserves from OpenStreetMap...")
         self.stdout.write(f"Using {bbox_name} bounding box: {bbox}")
+        if options["resume"]:
+            self.stdout.write("Resume mode: skipping grids that succeeded previously")
+        if options["min_age"] is not None:
+            self.stdout.write(
+                f"Min age: only processing grids older than {options['min_age']} hours"
+            )
 
         try:
-            # Check if we need to split into tiles
             if self.should_split_bbox(bbox):
                 tiles = self.split_bbox_into_tiles(bbox)
                 self.stdout.write(
-                    f"Splitting area into {len(tiles)} tiles (~{self.TILE_SIZE_KM}x{self.TILE_SIZE_KM} km each)"
+                    f"Splitting area into {len(tiles)} tiles "
+                    f"(~{self.TILE_SIZE_KM}x{self.TILE_SIZE_KM} km each)"
                 )
 
-                all_reserves = {}
+                total_created = 0
+                total_updated = 0
+                total_errors = 0
+                processed = 0
+
                 for tile_idx, tile_bbox in enumerate(tiles, 1):
+                    min_lon, min_lat, max_lon, max_lat = tile_bbox
+                    grid, _ = ImportGrid.objects.get_or_create(
+                        min_lon=min_lon,
+                        min_lat=min_lat,
+                        max_lon=max_lon,
+                        max_lat=max_lat,
+                        defaults={
+                            "grid_number": tile_idx,
+                            "success": False,
+                        },
+                    )
+
+                    if self.should_skip_grid(
+                        grid,
+                        resume=options["resume"],
+                        min_age_hours=options["min_age"],
+                    ):
+                        self.stdout.write(
+                            f"\nSkipping tile {tile_idx}/{len(tiles)}: {tile_bbox} "
+                            f"(success={grid.success}, last_updated={grid.last_updated})"
+                        )
+                        continue
+
                     self.stdout.write(
                         f"\nProcessing tile {tile_idx}/{len(tiles)}: {tile_bbox}"
                     )
@@ -158,70 +240,108 @@ class Command(BaseCommand):
                         tile_reserves = extractor.extract(
                             bbox=tile_bbox, output_callback=output_callback
                         )
-                        # Deduplicate by ID (reserves might appear in multiple tiles)
-                        for reserve in tile_reserves:
-                            all_reserves[reserve["id"]] = reserve
-                        self.stdout.write(
-                            f"  Found {len(tile_reserves)} reserves in this tile "
-                            f"(total unique: {len(all_reserves)})"
+                        output_callback(
+                            f"  Found {len(tile_reserves)} reserves in this tile"
+                        )
+
+                        created, updated, errs = self.process_tile_reserves(
+                            tile_reserves, output_callback
+                        )
+                        total_created += created
+                        total_updated += updated
+                        total_errors += errs
+                        processed += 1
+
+                        grid.grid_number = tile_idx
+                        grid.last_updated = timezone.now()
+                        grid.reserves_created_count = created
+                        grid.reserves_updated_count = updated
+                        grid.success = True
+                        grid.error_message = None
+                        grid.save()
+                        output_callback(
+                            f"  Grid saved: created={created}, updated={updated}, errors={errs}"
                         )
                     except requests.exceptions.RequestException as e:
                         self.stdout.write(
                             self.style.WARNING(
-                                f"  Error querying tile {tile_idx}: {e}. Continuing with next tile..."
+                                f"  Error querying tile {tile_idx}: {e}. Continuing..."
                             )
                         )
-                        continue
+                        grid.grid_number = tile_idx
+                        grid.last_updated = timezone.now()
+                        grid.reserves_created_count = 0
+                        grid.reserves_updated_count = 0
+                        grid.success = False
+                        grid.error_message = str(e)
+                        grid.save()
+                    except Exception as e:
+                        self.stdout.write(
+                            self.style.ERROR(f"  Tile {tile_idx}: {e}. Continuing...")
+                        )
+                        grid.grid_number = tile_idx
+                        grid.last_updated = timezone.now()
+                        grid.success = False
+                        grid.error_message = str(e)
+                        grid.save()
 
-                reserves = list(all_reserves.values())
-                self.stdout.write(f"\nTotal unique reserves found: {len(reserves)}")
+                self.stdout.write(self.style.SUCCESS("\nImport complete (gridded):"))
+                self.stdout.write(f"  Tiles processed: {processed}/{len(tiles)}")
+                self.stdout.write(f"  Created: {total_created}")
+                self.stdout.write(f"  Updated: {total_updated}")
+                self.stdout.write(f"  Errors: {total_errors}")
+                self.stdout.write(f"  Total in database: {NatureReserve.objects.count()}")
             else:
-                reserves = extractor.extract(bbox=bbox, output_callback=output_callback)
+                min_lon, min_lat, max_lon, max_lat = bbox
+                grid, _ = ImportGrid.objects.get_or_create(
+                    min_lon=min_lon,
+                    min_lat=min_lat,
+                    max_lon=max_lon,
+                    max_lat=max_lat,
+                    defaults={"grid_number": 1, "success": False},
+                )
+
+                if self.should_skip_grid(
+                    grid,
+                    resume=options["resume"],
+                    min_age_hours=options["min_age"],
+                ):
+                    self.stdout.write(
+                        f"Skipping single grid (success={grid.success}, "
+                        f"last_updated={grid.last_updated})"
+                    )
+                    return
+
+                reserves = extractor.extract(
+                    bbox=bbox, output_callback=output_callback
+                )
                 self.stdout.write(f"Found {len(reserves)} nature reserves")
 
-            created_count = 0
-            updated_count = 0
-            error_count = 0
+                created, updated, error_count = self.process_tile_reserves(
+                    reserves, output_callback
+                )
 
-            for idx, reserve_data in enumerate(reserves, 1):
-                try:
-                    reserve, created = NatureReserve.objects.update_or_create(
-                        id=reserve_data["id"],
-                        defaults={
-                            "name": reserve_data["name"],
-                            "osm_data": reserve_data["osm_data"],
-                            "tags": reserve_data["tags"],
-                            "area_type": reserve_data["area_type"],
-                        },
-                    )
+                grid.grid_number = 1
+                grid.last_updated = timezone.now()
+                grid.reserves_created_count = created
+                grid.reserves_updated_count = updated
+                grid.success = True
+                grid.error_message = None
+                grid.save()
 
-                    if created:
-                        created_count += 1
-                    else:
-                        updated_count += 1
+                self.stdout.write(self.style.SUCCESS("\nImport complete:"))
+                self.stdout.write(f"  Created: {created}")
+                self.stdout.write(f"  Updated: {updated}")
+                self.stdout.write(f"  Errors: {error_count}")
+                self.stdout.write(f"  Total in database: {NatureReserve.objects.count()}")
 
-                    if idx % 100 == 0:
+                if reserves:
+                    self.stdout.write("\nSample reserves:")
+                    for reserve_data in reserves[:5]:
                         self.stdout.write(
-                            f"  Processed {idx}/{len(reserves)} reserves..."
+                            f"  - {reserve_data['name'] or 'Unnamed'} "
+                            f"({reserve_data['area_type']})"
                         )
-
-                except Exception as e:
-                    self.stdout.write(self.style.ERROR(f"  Reserve {idx}: Error - {e}"))
-                    error_count += 1
-                    continue
-
-            self.stdout.write(self.style.SUCCESS(f"\nImport complete:"))
-            self.stdout.write(f"  Created: {created_count}")
-            self.stdout.write(f"  Updated: {updated_count}")
-            self.stdout.write(f"  Errors: {error_count}")
-            self.stdout.write(f"  Total in database: {NatureReserve.objects.count()}")
-
-            if reserves:
-                self.stdout.write("\nSample reserves:")
-                for reserve_data in reserves[:5]:
-                    self.stdout.write(
-                        f"  - {reserve_data['name'] or 'Unnamed'} ({reserve_data['area_type']})"
-                    )
 
         except requests.exceptions.RequestException as e:
             self.stdout.write(self.style.ERROR(f"Error querying Overpass API: {e}"))
