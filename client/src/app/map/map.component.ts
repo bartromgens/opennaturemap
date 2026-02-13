@@ -8,6 +8,8 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { MatToolbarModule } from '@angular/material/toolbar';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
 import * as L from 'leaflet';
 import 'leaflet.vectorgrid';
 
@@ -17,17 +19,43 @@ import { ReserveSidebarComponent } from './reserve-sidebar/reserve-sidebar.compo
 const DEFAULT_CENTER: L.LatLngTuple = [52.0907, 5.1214];
 const DEFAULT_ZOOM = 11;
 const API_BASE = '/api';
+const VECTOR_TILE_URL = 'http://localhost:8080/data/nature_reserves/{z}/{x}/{y}.pbf';
+
+const RESERVE_LAYER_STYLE: L.PathOptions = {
+  fill: true,
+  fillColor: '#2e7d32',
+  fillOpacity: 0.3,
+  stroke: true,
+  color: '#2e7d32',
+  weight: 2,
+  opacity: 0.8
+};
+
+export interface OperatorOption {
+  id: number;
+  name: string;
+  reserve_count: number;
+}
 
 @Component({
   selector: 'app-map',
   standalone: true,
-  imports: [CommonModule, MatToolbarModule, ReserveSidebarComponent],
+  imports: [
+    CommonModule,
+    MatToolbarModule,
+    MatFormFieldModule,
+    MatSelectModule,
+    ReserveSidebarComponent
+  ],
   templateUrl: './map.component.html',
   styleUrl: './map.component.css'
 })
 export class MapComponent implements AfterViewInit, OnDestroy {
   private map: L.Map | null = null;
+  private vectorTileLayer: L.Layer | null = null;
 
+  protected operators: OperatorOption[] = [];
+  protected selectedOperatorId: number | null = null;
   protected selectedReserve: NatureReserveDetail | null = null;
   protected sidebarExpanded = false;
   protected loadError: string | null = null;
@@ -40,13 +68,103 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   ) {}
 
   ngAfterViewInit(): void {
+    this.loadOperators();
     this.initMap();
   }
 
   ngOnDestroy(): void {
+    this.removeVectorTileLayer();
     if (this.map) {
       this.map.remove();
     }
+  }
+
+  protected onOperatorFilterChange(value: number | null): void {
+    this.selectedOperatorId = value;
+    this.updateVectorTileLayer();
+  }
+
+  private loadOperators(): void {
+    this.http.get<OperatorOption[] | { results: OperatorOption[] }>(`${API_BASE}/operators/`).subscribe({
+      next: (body) => {
+        this.operators = Array.isArray(body) ? body : (body.results ?? []);
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  private removeVectorTileLayer(): void {
+    if (this.map && this.vectorTileLayer) {
+      this.map.removeLayer(this.vectorTileLayer);
+      this.vectorTileLayer = null;
+    }
+  }
+
+  private addVectorTileLayer(): void {
+    if (!this.map) return;
+    const selectedId = this.selectedOperatorId;
+    const styleFn = (properties: Record<string, unknown>, _zoom: number): L.PathOptions | L.PathOptions[] => {
+      const raw = properties?.['operator_ids'];
+      const operatorIds = this.parseOperatorIdsFromTile(raw);
+      const show =
+        selectedId === null ||
+        (operatorIds.length > 0 && operatorIds.includes(Number(selectedId)));
+      return show ? RESERVE_LAYER_STYLE : [];
+    };
+    const layer = (L as unknown as { vectorGrid: { protobuf: (url: string, opts: object) => L.Layer } }).vectorGrid.protobuf(
+      VECTOR_TILE_URL,
+      {
+        vectorTileLayerStyles: {
+          nature_reserves: styleFn
+        },
+        interactive: true,
+        getFeatureId: (f: { properties: { id?: string; osm_id?: string } }) =>
+          f.properties.id ?? String(f.properties.osm_id ?? '')
+      }
+    );
+    layer.on('click', (e: L.LeafletMouseEvent) => this.onVectorTileClick(e));
+    layer.addTo(this.map);
+    this.vectorTileLayer = layer;
+  }
+
+  private parseOperatorIdsFromTile(raw: unknown): number[] {
+    if (raw == null) return [];
+    if (Array.isArray(raw)) {
+      return raw.map((v) => Number(v)).filter((n) => !Number.isNaN(n));
+    }
+    if (typeof raw === 'string') {
+      const trimmed = raw.trim();
+      if (trimmed === '') return [];
+      if (trimmed.startsWith('[')) {
+        try {
+          const arr = JSON.parse(trimmed) as unknown[];
+          return Array.isArray(arr)
+            ? arr.map((v) => Number(v)).filter((n) => !Number.isNaN(n))
+            : [];
+        } catch {
+          return [];
+        }
+      }
+      return trimmed
+        .split(',')
+        .map((s) => Number(s.trim()))
+        .filter((n) => !Number.isNaN(n));
+    }
+    return [];
+  }
+
+  private updateVectorTileLayer(): void {
+    this.removeVectorTileLayer();
+    this.addVectorTileLayer();
+  }
+
+  private onVectorTileClick(e: L.LeafletMouseEvent): void {
+    const ev = e as L.LeafletMouseEvent & { layer?: { properties?: Record<string, unknown> } };
+    const props = ev.layer?.properties ?? (e as unknown as { target?: { properties?: Record<string, unknown> } }).target?.properties;
+    const rawId = props?.['id'] != null ? String(props['id']) : undefined;
+    const osmType = props?.['osm_type'] != null ? String(props['osm_type']) : undefined;
+    const id = rawId ? this.normalizeReserveId(rawId, osmType) : undefined;
+    if (id) this.loadReserve(id);
   }
 
   private getInitialMapState(): { center: L.LatLngTuple; zoom: number } {
@@ -92,39 +210,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
       attribution: '© OpenStreetMap contributors'
     }).addTo(this.map);
 
-    const vectorTileLayer = (L as any).vectorGrid.protobuf(
-      'http://localhost:8080/data/nature_reserves/{z}/{x}/{y}.pbf',
-      {
-        vectorTileLayerStyles: {
-          nature_reserves: {
-            fill: true,
-            fillColor: '#2e7d32',
-            fillOpacity: 0.3,
-            stroke: true,
-            color: '#2e7d32',
-            weight: 2,
-            opacity: 0.8
-          }
-        },
-        interactive: true,
-        getFeatureId: (f: { properties: { id?: string; osm_id?: string } }) =>
-          f.properties.id ?? String(f.properties.osm_id ?? '')
-      }
-    ).addTo(this.map);
-
-    vectorTileLayer.on('click', (e: L.LeafletMouseEvent) => {
-      console.log('[map] vector tile click', e);
-      const ev = e as L.LeafletMouseEvent & { layer?: { properties?: Record<string, unknown> } };
-      console.log('[map] ev.layer', ev.layer, 'ev.target', (ev as unknown as { target?: unknown }).target);
-      const props = ev.layer?.properties ?? (ev as unknown as { target?: { properties?: Record<string, unknown> } }).target?.properties;
-      console.log('[map] props', props);
-      const rawId = props?.['id'] != null ? String(props['id']) : undefined;
-      const osmType = props?.['osm_type'] != null ? String(props['osm_type']) : undefined;
-      console.log('[map] extracted id', rawId, 'osm_type', osmType);
-      const id = rawId ? this.normalizeReserveId(rawId, osmType) : undefined;
-      if (id) this.loadReserve(id);
-      else console.log('[map] no id in props, not loading reserve');
-    });
+    this.addVectorTileLayer();
   }
 
   private normalizeReserveId(raw: string, osmType?: string): string {

@@ -1,5 +1,13 @@
 from rest_framework import serializers
-from .models import NatureReserve
+from .models import NatureReserve, Operator
+
+
+class OperatorSerializer(serializers.ModelSerializer):
+    reserve_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Operator
+        fields = ["id", "name", "reserve_count"]
 
 
 class NatureReserveSerializer(serializers.ModelSerializer):

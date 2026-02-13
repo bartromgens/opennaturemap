@@ -1,6 +1,19 @@
 <div class="layout">
   <mat-toolbar color="primary">
     <span>OpenNatureMap</span>
+    <span class="toolbar-spacer"></span>
+    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="operator-filter">
+      <mat-label>Operator</mat-label>
+      <mat-select
+        [value]="selectedOperatorId"
+        (selectionChange)="onOperatorFilterChange($event.value)"
+      >
+        <mat-option [value]="null">All operators</mat-option>
+        @for (op of operators; track op.id) {
+          <mat-option [value]="op.id">{{ op.name }} ({{ op.reserve_count }})</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
   </mat-toolbar>
   <div class="map-area">
     <div id="map"></div>

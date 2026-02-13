@@ -71,6 +71,8 @@ class Command(BaseCommand):
                     feature["properties"]["osm_type"] = osm_type
                     feature["properties"]["name"] = reserve.name
                     feature["properties"]["area_type"] = reserve.area_type
+                    ids = list(reserve.operators.values_list("id", flat=True))
+                    feature["properties"]["operator_ids"] = ",".join(str(i) for i in ids)
                     feature["properties"].update(reserve.tags)
 
                     all_features.append(feature)

@@ -19,6 +19,30 @@ mat-toolbar {
   flex-shrink: 0;
   margin: 0;
   padding: 0;
+  background-color: white;
+  color: rgba(0, 0, 0, 0.87);
+}
+
+.toolbar-spacer {
+  flex: 1;
+}
+
+.operator-filter {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  margin-right: 8px;
+}
+
+.operator-filter .mat-mdc-form-field-subscript-wrapper {
+  display: none;
+}
+
+.operator-filter .mat-mdc-text-field-wrapper {
+  padding: 0;
+}
+
+.operator-filter .mat-mdc-select-value {
+  color: inherit;
 }
 
 .map-area {

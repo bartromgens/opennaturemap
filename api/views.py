@@ -1,10 +1,21 @@
+from django.db.models import Count
 from rest_framework import viewsets, filters
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import NatureReserve
+
+from .models import NatureReserve, Operator
 from .serializers import (
     NatureReserveGeoJSONSerializer,
     NatureReserveSerializer,
+    OperatorSerializer,
 )
+
+
+class OperatorViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = (
+        Operator.objects.annotate(reserve_count=Count("nature_reserves"))
+        .order_by("-reserve_count", "name")
+    )
+    serializer_class = OperatorSerializer
 
 
 class NatureReserveViewSet(viewsets.ReadOnlyModelViewSet):
