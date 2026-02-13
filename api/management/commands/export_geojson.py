@@ -62,6 +62,13 @@ class Command(BaseCommand):
                     if "properties" not in feature:
                         feature["properties"] = {}
 
+                    feature["properties"]["id"] = reserve.id
+                    osm_type = (
+                        reserve.osm_data.get("type")
+                        if isinstance(reserve.osm_data, dict)
+                        else None
+                    ) or reserve.id.split("_")[0]
+                    feature["properties"]["osm_type"] = osm_type
                     feature["properties"]["name"] = reserve.name
                     feature["properties"]["area_type"] = reserve.area_type
                     feature["properties"].update(reserve.tags)

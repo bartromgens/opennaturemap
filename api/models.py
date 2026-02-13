@@ -1,9 +1,24 @@
 from django.db import models
 
 
+class Operator(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+
+    class Meta:
+        db_table = "operators"
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class ImportGrid(models.Model):
     grid_number = models.PositiveIntegerField(
-        help_text="1-based index of this tile in the bbox when last processed"
+        help_text=(
+            "1-based tile index from the run that last processed this grid. "
+            "Depends on the bbox used in that run; resume uses bbox "
+            "coordinates only."
+        )
     )
     min_lon = models.FloatField()
     min_lat = models.FloatField()
@@ -30,7 +45,10 @@ class ImportGrid(models.Model):
         ordering = ["grid_number"]
 
     def __str__(self) -> str:
-        return f"Grid {self.grid_number} ({self.min_lon},{self.min_lat},{self.max_lon},{self.max_lat})"
+        return (
+            f"Grid {self.grid_number} "
+            f"({self.min_lon},{self.min_lat},{self.max_lon},{self.max_lat})"
+        )
 
     @property
     def bbox(self) -> tuple[float, float, float, float]:
@@ -40,6 +58,11 @@ class ImportGrid(models.Model):
 class NatureReserve(models.Model):
     id = models.CharField(max_length=255, primary_key=True)
     name = models.CharField(max_length=255, null=True, blank=True)
+    operators = models.ManyToManyField(
+        Operator,
+        related_name="nature_reserves",
+        blank=True,
+    )
     osm_data = models.JSONField()
     tags = models.JSONField(default=dict)
     area_type = models.CharField(max_length=100)

@@ -1,7 +1,10 @@
 from rest_framework import viewsets, filters
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import NatureReserve
-from .serializers import NatureReserveSerializer, NatureReserveGeoJSONSerializer
+from .serializers import (
+    NatureReserveGeoJSONSerializer,
+    NatureReserveSerializer,
+)
 
 
 class NatureReserveViewSet(viewsets.ReadOnlyModelViewSet):
@@ -12,7 +15,7 @@ class NatureReserveViewSet(viewsets.ReadOnlyModelViewSet):
         filters.SearchFilter,
         filters.OrderingFilter,
     ]
-    filterset_fields = ["area_type"]
+    filterset_fields = ["area_type", "operators"]
     search_fields = ["name", "tags"]
     ordering_fields = ["name", "created_at", "updated_at"]
     ordering = ["name"]

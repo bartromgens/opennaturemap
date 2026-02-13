@@ -87,6 +87,7 @@ class OSMNatureReserveExtractor:
         self,
         bbox: Optional[tuple[float, float, float, float]] = None,
         tags: Optional[List[tuple[str, str]]] = None,
+        area_iso: Optional[str] = None,
     ) -> str:
         if tags is None:
             tags = [
@@ -101,18 +102,29 @@ class OSMNatureReserveExtractor:
             min_lon, min_lat, max_lon, max_lat = bbox
             bbox_filter = f"({min_lat},{min_lon},{max_lat},{max_lon})"
 
+        area_filter = ""
+        if area_iso:
+            area_filter = "(area.searchArea)"
+
         query_parts = []
         for key, value in tags:
             if bbox:
-                query_parts.append(f'  way["{key}"="{value}"]{bbox_filter};')
-                query_parts.append(f'  relation["{key}"="{value}"]{bbox_filter};')
+                query_parts.append(
+                    f'  way["{key}"="{value}"]{area_filter}{bbox_filter};'
+                )
+                query_parts.append(
+                    f'  relation["{key}"="{value}"]{area_filter}{bbox_filter};'
+                )
             else:
-                query_parts.append(f'  way["{key}"="{value}"];')
-                query_parts.append(f'  relation["{key}"="{value}"];')
+                query_parts.append(f'  way["{key}"="{value}"]{area_filter};')
+                query_parts.append(f'  relation["{key}"="{value}"]{area_filter};')
 
         query_timeout = min(self.timeout, 90)
+        area_line = ""
+        if area_iso:
+            area_line = f'area["ISO3166-1"="{area_iso}"]->.searchArea;\n'
         query = f"""[out:json][timeout:{query_timeout}];
-(
+{area_line}(
 {chr(10).join(query_parts)}
 );
 (._;>;);
@@ -433,9 +445,10 @@ out geom;"""
         self,
         bbox: Optional[tuple[float, float, float, float]] = None,
         tags: Optional[List[tuple[str, str]]] = None,
+        area_iso: Optional[str] = None,
         output_callback: Optional[Callable[[str], None]] = None,
     ) -> List[Dict[str, Any]]:
-        query = self.build_query(bbox, tags)
+        query = self.build_query(bbox, tags, area_iso=area_iso)
         data = self.query_overpass(query, output_callback=output_callback)
 
         if output_callback:

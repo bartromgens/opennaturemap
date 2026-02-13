@@ -7,7 +7,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from api.extractors import OSMNatureReserveExtractor
-from api.models import ImportGrid, NatureReserve
+from api.models import ImportGrid, NatureReserve, Operator
 
 NETHERLANDS_BBOX: Tuple[float, float, float, float] = (3.2, 50.75, 7.2, 53.7)
 
@@ -65,6 +65,18 @@ class Command(BaseCommand):
                 return True
         return False
 
+    def _operators_from_tags(self, tags: dict) -> List[Operator]:
+        raw = (tags or {}).get("operator", "").strip()
+        if not raw:
+            return []
+        result: List[Operator] = []
+        for part in raw.split(";"):
+            name = part.strip()
+            if name:
+                operator, _ = Operator.objects.get_or_create(name=name)
+                result.append(operator)
+        return result
+
     def process_tile_reserves(
         self,
         reserves: List[dict],
@@ -75,7 +87,9 @@ class Command(BaseCommand):
         error_count = 0
         for idx, reserve_data in enumerate(reserves, 1):
             try:
-                _, created = NatureReserve.objects.update_or_create(
+                tags = reserve_data.get("tags") or {}
+                operator_list = self._operators_from_tags(tags)
+                reserve, created = NatureReserve.objects.update_or_create(
                     id=reserve_data["id"],
                     defaults={
                         "name": reserve_data["name"],
@@ -84,6 +98,7 @@ class Command(BaseCommand):
                         "area_type": reserve_data["area_type"],
                     },
                 )
+                reserve.operators.set(operator_list)
                 if created:
                     created_count += 1
                 else:
@@ -146,25 +161,31 @@ class Command(BaseCommand):
 
         bbox = NETHERLANDS_BBOX
         bbox_name = "Netherlands"
+        area_iso = "NL"
 
         if options["test_region"]:
             bbox = test_region_bbox
             bbox_name = "test region (Utrecht, 52.11695/5.21434)"
+            area_iso = None
         elif options["test_de_deelen"]:
             bbox = de_deelen_bbox
             bbox_name = "test area (De Deelen, relation 7010743)"
+            area_iso = None
         elif options["province"] == "utrecht":
             bbox = utrecht_bbox
             bbox_name = "Utrecht province"
+            area_iso = "NL"
         elif options["province"] == "friesland":
             bbox = friesland_bbox
             bbox_name = "Friesland province"
+            area_iso = "NL"
         elif options["bbox"]:
             try:
                 coords = [float(x) for x in options["bbox"].split(",")]
                 if len(coords) == 4:
                     bbox = tuple(coords)
                     bbox_name = "custom"
+                    area_iso = None
                 else:
                     self.stdout.write(
                         self.style.ERROR(
@@ -238,7 +259,9 @@ class Command(BaseCommand):
                     )
                     try:
                         tile_reserves = extractor.extract(
-                            bbox=tile_bbox, output_callback=output_callback
+                            bbox=tile_bbox,
+                            area_iso=area_iso,
+                            output_callback=output_callback,
                         )
                         output_callback(
                             f"  Found {len(tile_reserves)} reserves in this tile"
@@ -313,7 +336,9 @@ class Command(BaseCommand):
                     return
 
                 reserves = extractor.extract(
-                    bbox=bbox, output_callback=output_callback
+                    bbox=bbox,
+                    area_iso=area_iso,
+                    output_callback=output_callback,
                 )
                 self.stdout.write(f"Found {len(reserves)} nature reserves")
 
