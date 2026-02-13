@@ -1,0 +1,37 @@
+<aside class="sidebar" [class.sidebar--expanded]="expanded()">
+  <div class="sidebar__inner">
+    @if (expanded()) {
+      <header class="sidebar__header">
+        <h2 class="sidebar__title">Reserve details</h2>
+        <button mat-icon-button (click)="onClose()" aria-label="Close sidebar">
+          <mat-icon>close</mat-icon>
+        </button>
+      </header>
+      @if (error()) {
+        <p class="sidebar__error">{{ error() }}</p>
+      } @else if (reserve()) {
+        <div class="sidebar__content">
+          <h3 class="reserve-name">{{ reserve()!.name || 'Unnamed reserve' }}</h3>
+          <dl class="reserve-details">
+            <dt>Type</dt>
+            <dd>{{ reserve()!.area_type }}</dd>
+            <dt>ID</dt>
+            <dd class="reserve-id">{{ reserve()!.id }}</dd>
+            @if (reserve()!.tags && objectKeys(reserve()!.tags).length) {
+              <dt>Tags</dt>
+              <dd>
+                <ul class="tag-list">
+                  @for (key of objectKeys(reserve()!.tags); track key) {
+                    <li>
+                      <strong>{{ key }}</strong>: {{ reserve()!.tags[key] }}
+                    </li>
+                  }
+                </ul>
+              </dd>
+            }
+          </dl>
+        </div>
+      }
+    }
+  </div>
+</aside>

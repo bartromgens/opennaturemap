@@ -1,4 +1,14 @@
-<mat-toolbar color="primary">
-  <span>Open Nature Map</span>
-</mat-toolbar>
-<div id="map"></div>
+<div class="layout">
+  <mat-toolbar color="primary">
+    <span>OpenNatureMap</span>
+  </mat-toolbar>
+  <div class="map-area">
+    <div id="map"></div>
+    <app-reserve-sidebar
+      [expanded]="sidebarExpanded"
+      [reserve]="selectedReserve"
+      [error]="loadError"
+      (closed)="closeSidebar()"
+    />
+  </div>
+</div>
