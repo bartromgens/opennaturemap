@@ -1,9 +1,11 @@
 import json
 from pathlib import Path
-from django.core.management.base import BaseCommand
+
 from django.conf import settings
+from django.core.management.base import BaseCommand
+
+from api.geometry_utils import osm_element_to_geojson_features
 from api.models import NatureReserve
-import osm2geojson
 
 
 class Command(BaseCommand):
@@ -39,17 +41,7 @@ class Command(BaseCommand):
 
         for reserve in reserves:
             try:
-                osm_element = reserve.osm_data
-
-                osm_response = {"elements": [osm_element]}
-                geojson_result = osm2geojson.json2geojson(osm_response)
-
-                if isinstance(geojson_result, dict) and "features" in geojson_result:
-                    features = geojson_result["features"]
-                elif isinstance(geojson_result, list):
-                    features = geojson_result
-                else:
-                    features = []
+                features = osm_element_to_geojson_features(reserve.osm_data)
 
                 for feature in features:
                     if (
@@ -72,7 +64,9 @@ class Command(BaseCommand):
                     feature["properties"]["name"] = reserve.name
                     feature["properties"]["area_type"] = reserve.area_type
                     ids = list(reserve.operators.values_list("id", flat=True))
-                    feature["properties"]["operator_ids"] = ",".join(str(i) for i in ids)
+                    feature["properties"]["operator_ids"] = ",".join(
+                        str(i) for i in ids
+                    )
                     feature["properties"].update(reserve.tags)
 
                     all_features.append(feature)

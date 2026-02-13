@@ -6,14 +6,21 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { FormsModule } from '@angular/forms';
+import { Subject, of } from 'rxjs';
+import { debounceTime, distinctUntilChanged, switchMap } from 'rxjs/operators';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
+import { MatInputModule } from '@angular/material/input';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import * as L from 'leaflet';
 import 'leaflet.vectorgrid';
 
-import type { NatureReserveDetail } from './reserve-detail';
+import type { NatureReserveDetail, NatureReserveListItem, ReserveGeometry } from './reserve-detail';
 import { ReserveSidebarComponent } from './reserve-sidebar/reserve-sidebar.component';
 
 const DEFAULT_CENTER: L.LatLngTuple = [52.0907, 5.1214];
@@ -31,6 +38,37 @@ const RESERVE_LAYER_STYLE: L.PathOptions = {
   opacity: 0.8
 };
 
+const HIGHLIGHT_LAYER_STYLE: L.PathOptions = {
+  fill: true,
+  fillColor: '#ed6c02',
+  fillOpacity: 0.25,
+  stroke: true,
+  color: '#ed6c02',
+  weight: 3,
+  opacity: 1
+};
+
+function geometryToLatLngBounds(geometry: ReserveGeometry): L.LatLngBounds | null {
+  const coords: L.LatLngTuple[] = [];
+  if (geometry.type === 'Polygon') {
+    for (const ring of geometry.coordinates) {
+      for (const pt of ring) {
+        if (pt.length >= 2) coords.push([pt[1], pt[0]]);
+      }
+    }
+  } else if (geometry.type === 'MultiPolygon') {
+    for (const poly of geometry.coordinates) {
+      for (const ring of poly) {
+        for (const pt of ring) {
+          if (pt.length >= 2) coords.push([pt[1], pt[0]]);
+        }
+      }
+    }
+  }
+  if (coords.length === 0) return null;
+  return L.latLngBounds(coords);
+}
+
 export interface OperatorOption {
   id: number;
   name: string;
@@ -42,9 +80,14 @@ export interface OperatorOption {
   standalone: true,
   imports: [
     CommonModule,
+    FormsModule,
     MatToolbarModule,
     MatFormFieldModule,
     MatSelectModule,
+    MatInputModule,
+    MatIconModule,
+    MatButtonModule,
+    MatProgressSpinnerModule,
     ReserveSidebarComponent
   ],
   templateUrl: './map.component.html',
@@ -53,27 +96,65 @@ export interface OperatorOption {
 export class MapComponent implements AfterViewInit, OnDestroy {
   private map: L.Map | null = null;
   private vectorTileLayer: L.Layer | null = null;
+  private highlightLayer: L.Layer | null = null;
+  private searchInput$ = new Subject<string>();
 
   protected operators: OperatorOption[] = [];
   protected selectedOperatorId: number | null = null;
   protected selectedReserve: NatureReserveDetail | null = null;
   protected sidebarExpanded = false;
   protected loadError: string | null = null;
+  protected searchQuery = '';
+  protected searchResults: NatureReserveListItem[] = [];
+  protected searchLoading = false;
 
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private http: HttpClient,
     private cdr: ChangeDetectorRef
-  ) {}
+  ) {
+    this.searchInput$
+      .pipe(
+        debounceTime(300),
+        distinctUntilChanged(),
+        switchMap((q) => {
+          const trimmed = (q ?? '').trim();
+          if (trimmed.length < 2) {
+            return of({ results: [] as NatureReserveListItem[] });
+          }
+          this.searchLoading = true;
+          this.cdr.detectChanges();
+          const params = new HttpParams().set('search', trimmed).set('page_size', '20');
+          return this.http.get<{ results: NatureReserveListItem[] } | NatureReserveListItem[]>(
+            `${API_BASE}/nature-reserves/`,
+            { params }
+          );
+        })
+      )
+      .subscribe({
+        next: (body) => {
+          this.searchResults = Array.isArray(body) ? body : (body.results ?? []);
+          this.searchLoading = false;
+          this.cdr.detectChanges();
+        },
+        error: () => {
+          this.searchLoading = false;
+          this.searchResults = [];
+          this.cdr.detectChanges();
+        }
+      });
+  }
 
   ngAfterViewInit(): void {
     this.loadOperators();
     this.initMap();
+    this.applyReserveFromUrl();
   }
 
   ngOnDestroy(): void {
     this.removeVectorTileLayer();
+    this.removeHighlightLayer();
     if (this.map) {
       this.map.remove();
     }
@@ -82,6 +163,22 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   protected onOperatorFilterChange(value: number | null): void {
     this.selectedOperatorId = value;
     this.updateVectorTileLayer();
+  }
+
+  protected onSearchInput(): void {
+    const q = this.searchQuery?.trim() ?? '';
+    if (q.length === 0) {
+      this.searchResults = [];
+      this.cdr.detectChanges();
+      return;
+    }
+    this.searchInput$.next(this.searchQuery!);
+  }
+
+  protected selectSearchResult(item: NatureReserveListItem): void {
+    this.loadReserve(item.id, true);
+    this.searchQuery = '';
+    this.searchResults = [];
   }
 
   private loadOperators(): void {
@@ -156,6 +253,9 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   private updateVectorTileLayer(): void {
     this.removeVectorTileLayer();
     this.addVectorTileLayer();
+    if (this.highlightLayer && this.map && 'bringToFront' in this.highlightLayer) {
+      (this.highlightLayer as { bringToFront: () => void }).bringToFront();
+    }
   }
 
   private onVectorTileClick(e: L.LeafletMouseEvent): void {
@@ -185,16 +285,58 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     if (!this.map) return;
     const center = this.map.getCenter();
     const zoom = this.map.getZoom();
+    const queryParams: Record<string, string | number | null> = {
+      lat: center.lat.toFixed(5),
+      lng: center.lng.toFixed(5),
+      zoom
+    };
+    if (this.selectedReserve) {
+      queryParams['reserve'] = this.selectedReserve.id;
+    }
     this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: {
-        lat: center.lat.toFixed(5),
-        lng: center.lng.toFixed(5),
-        zoom
-      },
+      queryParams: queryParams as Record<string, string | number>,
       queryParamsHandling: 'merge',
       replaceUrl: true
     });
+  }
+
+  private removeHighlightLayer(): void {
+    if (this.map && this.highlightLayer) {
+      this.map.removeLayer(this.highlightLayer);
+      this.highlightLayer = null;
+    }
+  }
+
+  private updateHighlightLayer(): void {
+    this.removeHighlightLayer();
+    if (!this.map || !this.selectedReserve?.geometry) return;
+    const feature = {
+      type: 'Feature' as const,
+      geometry: this.selectedReserve.geometry,
+      properties: {}
+    };
+    const layer = L.geoJSON(feature, { style: () => HIGHLIGHT_LAYER_STYLE });
+    layer.addTo(this.map);
+    if ('bringToFront' in layer) {
+      (layer as { bringToFront: () => void }).bringToFront();
+    }
+    this.highlightLayer = layer;
+  }
+
+  private fitMapToReserve(geometry: ReserveGeometry): void {
+    if (!this.map) return;
+    const bounds = geometryToLatLngBounds(geometry);
+    if (bounds) {
+      this.map.fitBounds(bounds, { maxZoom: 14, padding: [40, 40] });
+    }
+  }
+
+  private applyReserveFromUrl(): void {
+    const reserveId = this.route.snapshot.queryParamMap.get('reserve');
+    if (reserveId) {
+      this.loadReserve(reserveId, true);
+    }
   }
 
   private initMap(): void {
@@ -222,18 +364,20 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     return raw;
   }
 
-  protected loadReserve(id: string): void {
-    console.log('[map] loadReserve', id);
+  protected loadReserve(id: string, fitMap = false): void {
     this.loadError = null;
     this.http.get<NatureReserveDetail>(`${API_BASE}/nature-reserves/${id}/`).subscribe({
       next: (reserve) => {
-        console.log('[map] reserve loaded', reserve);
         this.selectedReserve = reserve;
         this.sidebarExpanded = true;
+        this.updateHighlightLayer();
+        if (fitMap && reserve.geometry) {
+          this.fitMapToReserve(reserve.geometry);
+        }
+        this.updateUrlFromMap();
         this.cdr.detectChanges();
       },
       error: (err) => {
-        console.log('[map] reserve load error', err);
         this.loadError = err?.message ?? 'Failed to load reserve';
         this.selectedReserve = null;
         this.sidebarExpanded = true;
@@ -246,5 +390,20 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     this.sidebarExpanded = false;
     this.selectedReserve = null;
     this.loadError = null;
+    this.removeHighlightLayer();
+    if (this.map) {
+      const center = this.map.getCenter();
+      const zoom = this.map.getZoom();
+      this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: {
+          lat: center.lat.toFixed(5),
+          lng: center.lng.toFixed(5),
+          zoom
+        },
+        queryParamsHandling: '',
+        replaceUrl: true
+      });
+    }
   }
 }

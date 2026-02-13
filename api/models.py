@@ -66,6 +66,10 @@ class NatureReserve(models.Model):
     osm_data = models.JSONField()
     tags = models.JSONField(default=dict)
     area_type = models.CharField(max_length=100)
+    min_lat = models.FloatField(null=True, blank=True)
+    max_lat = models.FloatField(null=True, blank=True)
+    min_lon = models.FloatField(null=True, blank=True)
+    max_lon = models.FloatField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -74,6 +78,7 @@ class NatureReserve(models.Model):
         indexes = [
             models.Index(fields=["area_type"]),
             models.Index(fields=["name"]),
+            models.Index(fields=["min_lat", "max_lat", "min_lon", "max_lon"]),
         ]
 
     def __str__(self) -> str:

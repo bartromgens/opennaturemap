@@ -3,7 +3,6 @@ import time
 import random
 from typing import List, Dict, Any, Optional, Callable
 
-
 USER_AGENT = "OpenNatureMap/1.0 (https://github.com/bartromgens/opennaturemap; contact@example.com)"
 
 

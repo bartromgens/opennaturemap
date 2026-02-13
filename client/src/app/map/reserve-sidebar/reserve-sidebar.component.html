@@ -15,6 +15,10 @@
           <dl class="reserve-details">
             <dt>Type</dt>
             <dd>{{ reserve()!.area_type }}</dd>
+            @if (reserve()!.operators.length) {
+              <dt>Operators</dt>
+              <dd>{{ operatorNames(reserve()!) }}</dd>
+            }
             <dt>ID</dt>
             <dd class="reserve-id">{{ reserve()!.id }}</dd>
             @if (reserve()!.tags && objectKeys(reserve()!.tags).length) {

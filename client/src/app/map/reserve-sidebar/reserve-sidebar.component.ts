@@ -22,6 +22,10 @@ export class ReserveSidebarComponent {
     return Object.keys(obj ?? {});
   }
 
+  protected operatorNames(reserve: NatureReserveDetail): string {
+    return (reserve.operators ?? []).map((op) => op.name).join(', ');
+  }
+
   protected onClose(): void {
     this.closed.emit();
   }

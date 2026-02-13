@@ -1,4 +1,6 @@
 from rest_framework import serializers
+
+from .geometry_utils import osm_element_to_geojson_features
 from .models import NatureReserve, Operator
 
 
@@ -25,20 +27,35 @@ class NatureReserveSerializer(serializers.ModelSerializer):
         read_only_fields = ["created_at", "updated_at"]
 
 
-def _osm_geometry_to_geojson(osm_data: dict) -> dict | None:
-    if not isinstance(osm_data, dict):
-        return None
-    raw = osm_data.get("geometry")
-    if raw is None:
-        return None
-    if isinstance(raw, dict) and raw.get("type") in ("Polygon", "MultiPolygon"):
-        return raw
-    if not isinstance(raw, list) or len(raw) < 3:
-        return None
-    ring = list(raw)
-    if ring[0] != ring[-1]:
-        ring.append(ring[0])
-    return {"type": "Polygon", "coordinates": [ring]}
+class NatureReserveDetailSerializer(serializers.ModelSerializer):
+    operators = OperatorSerializer(many=True, read_only=True)
+    geometry = serializers.SerializerMethodField()
+
+    class Meta:
+        model = NatureReserve
+        fields = [
+            "id",
+            "name",
+            "tags",
+            "area_type",
+            "operators",
+            "geometry",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["created_at", "updated_at"]
+
+    def get_geometry(self, obj: NatureReserve) -> dict | None:
+        return _geometry_from_osm_element(obj.osm_data)
+
+
+def _geometry_from_osm_element(osm_data: dict) -> dict | None:
+    features = osm_element_to_geojson_features(osm_data)
+    for feature in features:
+        g = feature.get("geometry")
+        if g and g.get("type") and g.get("coordinates"):
+            return g
+    return None
 
 
 class NatureReserveGeoJSONSerializer(serializers.Serializer):
@@ -50,7 +67,7 @@ class NatureReserveGeoJSONSerializer(serializers.Serializer):
     def to_representation(self, instance):
         serializer = NatureReserveSerializer(instance)
         data = serializer.data
-        geometry = _osm_geometry_to_geojson(instance.osm_data)
+        geometry = _geometry_from_osm_element(instance.osm_data)
         return {
             "type": "Feature",
             "id": data["id"],

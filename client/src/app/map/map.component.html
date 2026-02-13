@@ -2,7 +2,35 @@
   <mat-toolbar color="primary">
     <span>OpenNatureMap</span>
     <span class="toolbar-spacer"></span>
-    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="operator-filter">
+    <div class="search-wrap">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="toolbar-field search-field">
+        <mat-label>Search reserves</mat-label>
+        <input
+          matInput
+          type="text"
+          [(ngModel)]="searchQuery"
+          (ngModelChange)="onSearchInput()"
+          autocomplete="off"
+        />
+        @if (searchLoading) {
+          <mat-spinner matSuffix diameter="20"></mat-spinner>
+        }
+      </mat-form-field>
+      @if (searchResults.length) {
+        <div class="search-results">
+          @for (item of searchResults; track item.id) {
+            <button
+              type="button"
+              class="search-result-item"
+              (click)="selectSearchResult(item)"
+            >
+              {{ item.name || item.id }} <span class="search-result-type">({{ item.area_type }})</span>
+            </button>
+          }
+        </div>
+      }
+    </div>
+    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="toolbar-field operator-filter">
       <mat-label>Operator</mat-label>
       <mat-select
         [value]="selectedOperatorId"

@@ -7,6 +7,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from api.extractors import OSMNatureReserveExtractor
+from api.geometry_utils import bbox_from_osm_geometry
 from api.models import ImportGrid, NatureReserve, Operator
 
 NETHERLANDS_BBOX: Tuple[float, float, float, float] = (3.2, 50.75, 7.2, 53.7)
@@ -89,14 +90,25 @@ class Command(BaseCommand):
             try:
                 tags = reserve_data.get("tags") or {}
                 operator_list = self._operators_from_tags(tags)
+                geometry = reserve_data.get("geometry") or (
+                    reserve_data.get("osm_data") or {}
+                ).get("geometry")
+                bbox = bbox_from_osm_geometry(geometry)
+                defaults: dict = {
+                    "name": reserve_data["name"],
+                    "osm_data": reserve_data["osm_data"],
+                    "tags": reserve_data["tags"],
+                    "area_type": reserve_data["area_type"],
+                }
+                if bbox is not None:
+                    min_lon, min_lat, max_lon, max_lat = bbox
+                    defaults["min_lon"] = min_lon
+                    defaults["min_lat"] = min_lat
+                    defaults["max_lon"] = max_lon
+                    defaults["max_lat"] = max_lat
                 reserve, created = NatureReserve.objects.update_or_create(
                     id=reserve_data["id"],
-                    defaults={
-                        "name": reserve_data["name"],
-                        "osm_data": reserve_data["osm_data"],
-                        "tags": reserve_data["tags"],
-                        "area_type": reserve_data["area_type"],
-                    },
+                    defaults=defaults,
                 )
                 reserve.operators.set(operator_list)
                 if created:
@@ -313,7 +325,9 @@ class Command(BaseCommand):
                 self.stdout.write(f"  Created: {total_created}")
                 self.stdout.write(f"  Updated: {total_updated}")
                 self.stdout.write(f"  Errors: {total_errors}")
-                self.stdout.write(f"  Total in database: {NatureReserve.objects.count()}")
+                self.stdout.write(
+                    f"  Total in database: {NatureReserve.objects.count()}"
+                )
             else:
                 min_lon, min_lat, max_lon, max_lat = bbox
                 grid, _ = ImportGrid.objects.get_or_create(
@@ -358,7 +372,9 @@ class Command(BaseCommand):
                 self.stdout.write(f"  Created: {created}")
                 self.stdout.write(f"  Updated: {updated}")
                 self.stdout.write(f"  Errors: {error_count}")
-                self.stdout.write(f"  Total in database: {NatureReserve.objects.count()}")
+                self.stdout.write(
+                    f"  Total in database: {NatureReserve.objects.count()}"
+                )
 
                 if reserves:
                     self.stdout.write("\nSample reserves:")
