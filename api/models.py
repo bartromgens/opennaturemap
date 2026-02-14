@@ -78,7 +78,16 @@ class NatureReserve(models.Model):
         indexes = [
             models.Index(fields=["area_type"]),
             models.Index(fields=["name"]),
-            models.Index(fields=["min_lat", "max_lat", "min_lon", "max_lon"]),
+            models.Index(
+                fields=["min_lat", "min_lon", "max_lat", "max_lon"],
+                name="nature_rese_bbox_at_point_idx",
+                condition=models.Q(
+                    min_lat__isnull=False,
+                    max_lat__isnull=False,
+                    min_lon__isnull=False,
+                    max_lon__isnull=False,
+                ),
+            ),
         ]
 
     def __str__(self) -> str:
