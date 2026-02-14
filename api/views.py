@@ -99,6 +99,7 @@ class NatureReserveViewSet(viewsets.ReadOnlyModelViewSet):
                 {"error": "lat and lon must be numbers"},
                 status=400,
             )
+        at_point_fields = ["id", "name", "area_type", "osm_data"]
         qs = NatureReserve.objects.filter(
             min_lat__isnull=False,
             max_lat__isnull=False,
@@ -108,24 +109,21 @@ class NatureReserveViewSet(viewsets.ReadOnlyModelViewSet):
             max_lat__gte=lat,
             min_lon__lte=lon,
             max_lon__gte=lon,
-        )
-        containing = []
+        ).only(*at_point_fields)
+        containing: list[tuple[NatureReserve, dict]] = []
         for reserve in qs:
             geom = geometry_from_osm_element(reserve.osm_data)
             if geom and point_in_geojson_geometry(lon, lat, geom):
-                containing.append(reserve)
+                containing.append((reserve, geom))
         if not containing:
-            for reserve in NatureReserve.objects.all()[:5000]:
+            fallback_qs = NatureReserve.objects.only(*at_point_fields)[:5000]
+            for reserve in fallback_qs:
                 geom = geometry_from_osm_element(reserve.osm_data)
                 if geom and point_in_geojson_geometry(lon, lat, geom):
-                    containing.append(reserve)
+                    containing.append((reserve, geom))
                     if len(containing) >= 50:
                         break
-
-        def reserve_area(reserve: NatureReserve) -> float:
-            geom = geometry_from_osm_element(reserve.osm_data) or {}
-            return geojson_geometry_area(geom)
-
-        containing.sort(key=reserve_area)
-        serializer = NatureReserveListItemAtPointSerializer(containing, many=True)
+        containing.sort(key=lambda pair: geojson_geometry_area(pair[1]))
+        reserves = [reserve for reserve, _ in containing]
+        serializer = NatureReserveListItemAtPointSerializer(reserves, many=True)
         return Response(serializer.data)

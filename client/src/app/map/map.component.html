@@ -49,6 +49,7 @@
       <app-reserve-picker
         [reserves]="reservesAtPoint"
         [loading]="atPointLoading"
+        [position]="pickerPosition"
         (reserveSelected)="selectReserveAtPoint($event)"
         (closed)="closeReservePicker()"
       />

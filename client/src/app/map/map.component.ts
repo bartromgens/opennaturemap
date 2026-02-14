@@ -111,6 +111,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   protected searchLoading = false;
   protected reservesAtPoint: NatureReserveListItem[] = [];
   protected atPointLoading = false;
+  protected pickerPosition: { x: number; y: number } | null = null;
 
   constructor(
     private route: ActivatedRoute,
@@ -190,10 +191,12 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   protected selectReserveAtPoint(item: NatureReserveListItem): void {
     this.loadReserve(item.id);
     this.reservesAtPoint = [];
+    this.pickerPosition = null;
   }
 
   protected closeReservePicker(): void {
     this.reservesAtPoint = [];
+    this.pickerPosition = null;
   }
 
   private loadOperators(): void {
@@ -275,6 +278,9 @@ export class MapComponent implements AfterViewInit, OnDestroy {
 
   private onVectorTileClick(e: L.LeafletMouseEvent): void {
     this.reservesAtPoint = [];
+    this.pickerPosition = this.map
+      ? this.map.latLngToContainerPoint(e.latlng)
+      : null;
     const lat = e.latlng.lat;
     const lng = e.latlng.lng;
     this.atPointLoading = true;
@@ -448,6 +454,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     this.selectedReserve = null;
     this.loadError = null;
     this.reservesAtPoint = [];
+    this.pickerPosition = null;
     this.removeHighlightLayer();
     if (this.map) {
       const center = this.map.getCenter();

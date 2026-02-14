@@ -1,34 +1,30 @@
-<div class="reserve-picker-overlay">
+<div
+  class="reserve-picker-overlay"
+  [ngStyle]="
+    position()
+      ? {
+          left: position()!.x + 'px',
+          top: position()!.y + 'px',
+          transform: 'translate(-50%, -50%)'
+        }
+      : { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }
+  "
+>
   @if (loading()) {
     <div class="reserve-picker-loading">
-      <mat-spinner diameter="32"></mat-spinner>
-      <span>Loading…</span>
+      <mat-spinner diameter="24"></mat-spinner>
     </div>
   } @else if (reserves().length > 1) {
     <div class="reserve-picker-card">
-      <div class="reserve-picker-header">
-        <span>Multiple reserves at this point</span>
+      @for (item of reserves(); track item.id) {
         <button
           type="button"
-          mat-icon-button
-          (click)="onClose()"
-          aria-label="Close"
+          class="reserve-picker-item"
+          (click)="onSelect(item)"
         >
-          <mat-icon>close</mat-icon>
+          {{ item.name || item.id }}
         </button>
-      </div>
-      <div class="reserve-picker-list">
-        @for (item of reserves(); track item.id) {
-          <button
-            type="button"
-            class="reserve-picker-item"
-            (click)="onSelect(item)"
-          >
-            {{ item.name || item.id }}
-            <span class="reserve-picker-type">({{ item.area_type }})</span>
-          </button>
-        }
-      </div>
+      }
     </div>
   }
 </div>
