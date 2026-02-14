@@ -4,18 +4,22 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from api.geometry_utils import osm_element_to_geojson_features
+from api.geometry_utils import (
+    geojson_geometry_area,
+    osm_element_to_geojson_features,
+)
 from api.models import NatureReserve
 
 
 class Command(BaseCommand):
-    help = "Export all NatureReserves to a single GeoJSON file using osm2geojson"
+    help = "Export NatureReserves to GeoJSON using osm2geojson"
 
     def add_arguments(self, parser):
+        default_out = settings.BASE_DIR / "data" / "nature_reserves.geojson"
         parser.add_argument(
             "--output",
             type=str,
-            default=str(settings.BASE_DIR / "data" / "nature_reserves.geojson"),
+            default=str(default_out),
             help="Output file path (default: data/nature_reserves.geojson)",
         )
 
@@ -74,14 +78,12 @@ class Command(BaseCommand):
                 processed_count += 1
 
                 if processed_count % 100 == 0:
-                    self.stdout.write(
-                        f"  Processed {processed_count}/{total_count} reserves..."
-                    )
+                    msg = f"  Processed {processed_count}/{total_count} " "reserves..."
+                    self.stdout.write(msg)
 
             except Exception as e:
-                self.stdout.write(
-                    self.style.ERROR(f"  Error processing reserve {reserve.id}: {e}")
-                )
+                err_msg = f"  Error processing reserve {reserve.id}: {e}"
+                self.stdout.write(self.style.ERROR(err_msg))
                 error_count += 1
                 continue
 
@@ -89,7 +91,16 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING("No features generated from reserves"))
             return
 
-        geojson_collection = {"type": "FeatureCollection", "features": all_features}
+        def feature_area(f: dict) -> float:
+            geom = f.get("geometry")
+            return geojson_geometry_area(geom) if isinstance(geom, dict) else 0.0
+
+        all_features.sort(key=feature_area)
+
+        geojson_collection = {
+            "type": "FeatureCollection",
+            "features": all_features,
+        }
 
         self.stdout.write(f"Writing {len(all_features)} features to {output_path}...")
 
@@ -97,7 +108,7 @@ class Command(BaseCommand):
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(geojson_collection, f, indent=2, ensure_ascii=False)
 
-        self.stdout.write(self.style.SUCCESS(f"\nExport complete:"))
+        self.stdout.write(self.style.SUCCESS("\nExport complete:"))
         self.stdout.write(f"  Processed: {processed_count}")
         self.stdout.write(f"  Features: {len(all_features)}")
         self.stdout.write(f"  Errors: {error_count}")

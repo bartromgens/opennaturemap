@@ -21,6 +21,7 @@ import * as L from 'leaflet';
 import 'leaflet.vectorgrid';
 
 import type { NatureReserveDetail, NatureReserveListItem, ReserveGeometry } from './reserve-detail';
+import { ReservePickerComponent } from './reserve-picker/reserve-picker.component';
 import { ReserveSidebarComponent } from './reserve-sidebar/reserve-sidebar.component';
 
 const DEFAULT_CENTER: L.LatLngTuple = [52.0907, 5.1214];
@@ -88,7 +89,8 @@ export interface OperatorOption {
     MatIconModule,
     MatButtonModule,
     MatProgressSpinnerModule,
-    ReserveSidebarComponent
+    ReservePickerComponent,
+    ReserveSidebarComponent,
   ],
   templateUrl: './map.component.html',
   styleUrl: './map.component.css'
@@ -107,6 +109,8 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   protected searchQuery = '';
   protected searchResults: NatureReserveListItem[] = [];
   protected searchLoading = false;
+  protected reservesAtPoint: NatureReserveListItem[] = [];
+  protected atPointLoading = false;
 
   constructor(
     private route: ActivatedRoute,
@@ -148,6 +152,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
 
   ngAfterViewInit(): void {
     this.loadOperators();
+    this.applyOperatorFromUrl();
     this.initMap();
     this.applyReserveFromUrl();
   }
@@ -163,6 +168,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   protected onOperatorFilterChange(value: number | null): void {
     this.selectedOperatorId = value;
     this.updateVectorTileLayer();
+    this.updateUrlFromMap();
   }
 
   protected onSearchInput(): void {
@@ -179,6 +185,15 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     this.loadReserve(item.id, true);
     this.searchQuery = '';
     this.searchResults = [];
+  }
+
+  protected selectReserveAtPoint(item: NatureReserveListItem): void {
+    this.loadReserve(item.id);
+    this.reservesAtPoint = [];
+  }
+
+  protected closeReservePicker(): void {
+    this.reservesAtPoint = [];
   }
 
   private loadOperators(): void {
@@ -259,6 +274,33 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   }
 
   private onVectorTileClick(e: L.LeafletMouseEvent): void {
+    this.reservesAtPoint = [];
+    const lat = e.latlng.lat;
+    const lng = e.latlng.lng;
+    this.atPointLoading = true;
+    this.cdr.detectChanges();
+    const params = new HttpParams().set('lat', String(lat)).set('lon', String(lng));
+    this.http.get<NatureReserveListItem[]>(`${API_BASE}/nature-reserves/at_point/`, { params }).subscribe({
+      next: (reserves) => {
+        this.atPointLoading = false;
+        if (reserves.length === 0) {
+          this.fallbackReserveFromTileClick(e);
+        } else if (reserves.length === 1) {
+          this.loadReserve(reserves[0].id);
+        } else {
+          this.reservesAtPoint = reserves;
+        }
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.atPointLoading = false;
+        this.fallbackReserveFromTileClick(e);
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  private fallbackReserveFromTileClick(e: L.LeafletMouseEvent): void {
     const ev = e as L.LeafletMouseEvent & { layer?: { properties?: Record<string, unknown> } };
     const props = ev.layer?.properties ?? (e as unknown as { target?: { properties?: Record<string, unknown> } }).target?.properties;
     const rawId = props?.['id'] != null ? String(props['id']) : undefined;
@@ -292,6 +334,11 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     };
     if (this.selectedReserve) {
       queryParams['reserve'] = this.selectedReserve.id;
+    }
+    if (this.selectedOperatorId != null) {
+      queryParams['operator'] = this.selectedOperatorId;
+    } else {
+      queryParams['operator'] = null;
     }
     this.router.navigate([], {
       relativeTo: this.route,
@@ -329,6 +376,16 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     const bounds = geometryToLatLngBounds(geometry);
     if (bounds) {
       this.map.fitBounds(bounds, { maxZoom: 14, padding: [40, 40] });
+    }
+  }
+
+  private applyOperatorFromUrl(): void {
+    const raw = this.route.snapshot.queryParamMap.get('operator');
+    if (raw != null && raw !== '') {
+      const id = Number(raw);
+      if (!Number.isNaN(id) && Number.isInteger(id)) {
+        this.selectedOperatorId = id;
+      }
     }
   }
 
@@ -390,17 +447,22 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     this.sidebarExpanded = false;
     this.selectedReserve = null;
     this.loadError = null;
+    this.reservesAtPoint = [];
     this.removeHighlightLayer();
     if (this.map) {
       const center = this.map.getCenter();
       const zoom = this.map.getZoom();
+      const queryParams: Record<string, string | number | null> = {
+        lat: center.lat.toFixed(5),
+        lng: center.lng.toFixed(5),
+        zoom
+      };
+      if (this.selectedOperatorId != null) {
+        queryParams['operator'] = this.selectedOperatorId;
+      }
       this.router.navigate([], {
         relativeTo: this.route,
-        queryParams: {
-          lat: center.lat.toFixed(5),
-          lng: center.lng.toFixed(5),
-          zoom
-        },
+        queryParams: queryParams as Record<string, string | number>,
         queryParamsHandling: '',
         replaceUrl: true
       });

@@ -1,0 +1,63 @@
+.reserve-picker-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1000;
+  pointer-events: auto;
+}
+
+.reserve-picker-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.reserve-picker-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  max-width: 360px;
+  max-height: 70vh;
+  padding: 16px 24px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.reserve-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+.reserve-picker-list {
+  overflow-y: auto;
+}
+
+.reserve-picker-item {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.reserve-picker-item:hover {
+  background: #f5f5f5;
+}
+
+.reserve-picker-type {
+  color: #757575;
+  font-size: 0.8125rem;
+}

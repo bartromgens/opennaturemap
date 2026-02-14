@@ -34,8 +34,8 @@ mat-toolbar {
 }
 
 .toolbar-field {
-  padding-top: 8px;
-  padding-bottom: 8px;
+  padding-top: 0px;
+  padding-bottom: 0px;
   margin-right: 8px;
 }
 

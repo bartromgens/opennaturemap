@@ -47,7 +47,18 @@ operators_display.short_description = "Operators"
 
 @admin.register(NatureReserve)
 class NatureReserveAdmin(admin.ModelAdmin):
-    list_display = ["id", "name", operators_display, "area_type", "created_at"]
+    list_display = [
+        "id",
+        "name",
+        operators_display,
+        "area_type",
+        "min_lat",
+        "max_lat",
+        "min_lon",
+        "max_lon",
+        "created_at",
+        "updated_at",
+    ]
     list_filter = ["area_type", "operators", "created_at"]
     search_fields = ["id", "name"]
     readonly_fields = ["created_at", "updated_at", "osm_data", "tags"]

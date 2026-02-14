@@ -1,11 +1,19 @@
 from django.db.models import Count
 from rest_framework import viewsets, filters
+from rest_framework.decorators import action
+from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 
+from .geometry_utils import (
+    geometry_from_osm_element,
+    geojson_geometry_area,
+    point_in_geojson_geometry,
+)
 from .models import NatureReserve, Operator
 from .serializers import (
     NatureReserveDetailSerializer,
     NatureReserveGeoJSONSerializer,
+    NatureReserveListItemAtPointSerializer,
     NatureReserveSerializer,
     OperatorSerializer,
 )
@@ -65,9 +73,59 @@ class NatureReserveViewSet(viewsets.ReadOnlyModelViewSet):
     def get_serializer_class(self):
         if self.action == "retrieve":
             return NatureReserveDetailSerializer
+        if self.action == "at_point":
+            return NatureReserveListItemAtPointSerializer
         if (
             self.action == "list"
             and self.request.query_params.get("format") == "geojson"
         ):
             return NatureReserveGeoJSONSerializer
         return NatureReserveSerializer
+
+    @action(detail=False, url_path="at_point", methods=["get"])
+    def at_point(self, request):
+        lat_param = request.query_params.get("lat")
+        lon_param = request.query_params.get("lon")
+        if lat_param is None or lon_param is None:
+            return Response(
+                {"error": "Query parameters 'lat' and 'lon' are required"},
+                status=400,
+            )
+        try:
+            lat = float(lat_param)
+            lon = float(lon_param)
+        except ValueError:
+            return Response(
+                {"error": "lat and lon must be numbers"},
+                status=400,
+            )
+        qs = NatureReserve.objects.filter(
+            min_lat__isnull=False,
+            max_lat__isnull=False,
+            min_lon__isnull=False,
+            max_lon__isnull=False,
+            min_lat__lte=lat,
+            max_lat__gte=lat,
+            min_lon__lte=lon,
+            max_lon__gte=lon,
+        )
+        containing = []
+        for reserve in qs:
+            geom = geometry_from_osm_element(reserve.osm_data)
+            if geom and point_in_geojson_geometry(lon, lat, geom):
+                containing.append(reserve)
+        if not containing:
+            for reserve in NatureReserve.objects.all()[:5000]:
+                geom = geometry_from_osm_element(reserve.osm_data)
+                if geom and point_in_geojson_geometry(lon, lat, geom):
+                    containing.append(reserve)
+                    if len(containing) >= 50:
+                        break
+
+        def reserve_area(reserve: NatureReserve) -> float:
+            geom = geometry_from_osm_element(reserve.osm_data) or {}
+            return geojson_geometry_area(geom)
+
+        containing.sort(key=reserve_area)
+        serializer = NatureReserveListItemAtPointSerializer(containing, many=True)
+        return Response(serializer.data)

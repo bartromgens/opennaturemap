@@ -45,6 +45,14 @@
   </mat-toolbar>
   <div class="map-area">
     <div id="map"></div>
+    @if (atPointLoading || reservesAtPoint.length > 1) {
+      <app-reserve-picker
+        [reserves]="reservesAtPoint"
+        [loading]="atPointLoading"
+        (reserveSelected)="selectReserveAtPoint($event)"
+        (closed)="closeReservePicker()"
+      />
+    }
     <app-reserve-sidebar
       [expanded]="sidebarExpanded"
       [reserve]="selectedReserve"
