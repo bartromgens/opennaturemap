@@ -11,6 +11,7 @@ from api.geometry_utils import bbox_from_osm_geometry
 from api.models import ImportGrid, NatureReserve, Operator
 
 NETHERLANDS_BBOX: Tuple[float, float, float, float] = (3.2, 50.75, 7.2, 53.7)
+SPAIN_BBOX: Tuple[float, float, float, float] = (-9.3, 36.0, 4.3, 43.8)
 
 
 class Command(BaseCommand):
@@ -124,9 +125,15 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
+            "--region",
+            choices=["netherlands", "spain"],
+            default="netherlands",
+            help="Country/region to import (default: netherlands)",
+        )
+        parser.add_argument(
             "--province",
             choices=["utrecht", "friesland"],
-            help="Extract only from a specific province (Utrecht or Friesland)",
+            help="Extract only from a specific province (Utrecht or Friesland, Netherlands only)",
         )
         parser.add_argument(
             "--bbox",
@@ -191,6 +198,10 @@ class Command(BaseCommand):
             bbox = friesland_bbox
             bbox_name = "Friesland province"
             area_iso = "NL"
+        elif options["region"] == "spain":
+            bbox = SPAIN_BBOX
+            bbox_name = "Spain"
+            area_iso = "ES"
         elif options["bbox"]:
             try:
                 coords = [float(x) for x in options["bbox"].split(",")]
