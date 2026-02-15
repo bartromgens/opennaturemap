@@ -23,25 +23,38 @@ class Command(BaseCommand):
 
     TILE_SIZE_KM = 30.0
 
-    def calculate_tile_size_degrees(self, center_lat: float) -> Tuple[float, float]:
-        lat_degrees = self.TILE_SIZE_KM / 111.0
-        lon_degrees = self.TILE_SIZE_KM / (111.0 * math.cos(math.radians(center_lat)))
+    def calculate_tile_size_degrees(
+        self, center_lat: float, tile_size_km: float | None = None
+    ) -> Tuple[float, float]:
+        km = tile_size_km if tile_size_km is not None else self.TILE_SIZE_KM
+        lat_degrees = km / 111.0
+        lon_degrees = km / (111.0 * math.cos(math.radians(center_lat)))
         return (lon_degrees, lat_degrees)
 
-    def should_split_bbox(self, bbox: Tuple[float, float, float, float]) -> bool:
+    def should_split_bbox(
+        self,
+        bbox: Tuple[float, float, float, float],
+        tile_size_km: float | None = None,
+    ) -> bool:
         min_lon, min_lat, max_lon, max_lat = bbox
         center_lat = (min_lat + max_lat) / 2.0
-        lon_degrees, lat_degrees = self.calculate_tile_size_degrees(center_lat)
+        lon_degrees, lat_degrees = self.calculate_tile_size_degrees(
+            center_lat, tile_size_km
+        )
         bbox_lon_span = max_lon - min_lon
         bbox_lat_span = max_lat - min_lat
         return bbox_lon_span > lon_degrees or bbox_lat_span > lat_degrees
 
     def split_bbox_into_tiles(
-        self, bbox: Tuple[float, float, float, float]
+        self,
+        bbox: Tuple[float, float, float, float],
+        tile_size_km: float | None = None,
     ) -> List[Tuple[float, float, float, float]]:
         min_lon, min_lat, max_lon, max_lat = bbox
         center_lat = (min_lat + max_lat) / 2.0
-        lon_degrees, lat_degrees = self.calculate_tile_size_degrees(center_lat)
+        lon_degrees, lat_degrees = self.calculate_tile_size_degrees(
+            center_lat, tile_size_km
+        )
         tiles = []
         current_lat = min_lat
         while current_lat < max_lat:
@@ -166,6 +179,13 @@ class Command(BaseCommand):
             metavar="HOURS",
             help="Only process grids that were never updated or last updated more than HOURS ago",
         )
+        parser.add_argument(
+            "--tile-size",
+            type=float,
+            default=None,
+            metavar="KM",
+            help="Grid tile size in km (default: 30). Smaller tiles = lighter Overpass queries and fewer timeouts, but more requests.",
+        )
 
     def handle(self, *args, **options):
         extractor = OSMNatureReserveExtractor()
@@ -240,12 +260,16 @@ class Command(BaseCommand):
                 f"Min age: only processing grids older than {options['min_age']} hours"
             )
 
+        tile_size_km = options.get("tile_size")
+        if tile_size_km is not None:
+            self.stdout.write(f"Using tile size: {tile_size_km} km")
         try:
-            if self.should_split_bbox(bbox):
-                tiles = self.split_bbox_into_tiles(bbox)
+            if self.should_split_bbox(bbox, tile_size_km):
+                tiles = self.split_bbox_into_tiles(bbox, tile_size_km)
+                km = tile_size_km if tile_size_km is not None else self.TILE_SIZE_KM
                 self.stdout.write(
                     f"Splitting area into {len(tiles)} tiles "
-                    f"(~{self.TILE_SIZE_KM}x{self.TILE_SIZE_KM} km each)"
+                    f"(~{km}x{km} km each)"
                 )
 
                 total_created = 0
