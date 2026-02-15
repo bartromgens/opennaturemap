@@ -33,7 +33,10 @@ def test_server(
         response = requests.post(
             url,
             data={"data": query},
-            headers={"User-Agent": USER_AGENT},
+            headers={
+                "User-Agent": USER_AGENT,
+                "Accept": "application/json",
+            },
             timeout=timeout,
         )
         duration = time.perf_counter() - start
@@ -56,12 +59,25 @@ def test_server(
             data = response.json()
         except ValueError as e:
             body = response.text or ""
+            content_type = response.headers.get("Content-Type", "")
+            preview_len = 400
+            preview = (
+                body[:preview_len].replace("\n", " ").strip()
+                if body
+                else "(empty body)"
+            )
+            suffix = "..." if len(body) > preview_len else ""
+            error_detail = (
+                f"Invalid JSON: {e}. "
+                f"Content-Type: {content_type}. "
+                f"Response: {preview}{suffix}"
+            )
             return ServerResult(
                 url=url,
                 ok=False,
                 duration_sec=duration,
                 status_code=200,
-                error=f"Invalid JSON: {e}",
+                error=error_detail,
                 raw_response=body if capture_response else body[:2000],
             )
 
@@ -141,7 +157,7 @@ class Command(BaseCommand):
                 extra = f" (elements: {r.element_count})"
             elif r.error:
                 err = r.error.replace("\n", " ").strip()
-                extra = f" — {err[:100]}{'...' if len(err) > 100 else ''}"
+                extra = f" — {err[:450]}{'...' if len(err) > 450 else ''}"
             elif r.status_code:
                 extra = f" — HTTP {r.status_code}"
             self.stdout.write(f"  [{status:5}] {time_str:6}  {r.url}{extra}")
