@@ -3,7 +3,143 @@ from django.test import TestCase
 from django.core.management import call_command
 from io import StringIO
 from api.models import NatureReserve
+from api.geometry_utils import (
+    bbox_from_osm_element,
+    bbox_from_osm_geometry,
+    geometry_from_osm_element,
+    point_in_geojson_geometry,
+)
 import json
+
+
+class BboxFromOsmTest(TestCase):
+    def test_bbox_from_osm_geometry_none_returns_none(self):
+        self.assertIsNone(bbox_from_osm_geometry(None))
+
+    def test_bbox_from_osm_geometry_empty_list_returns_none(self):
+        self.assertIsNone(bbox_from_osm_geometry([]))
+
+    def test_bbox_from_osm_geometry_single_ring_dict_points(self):
+        geometry = [
+            {"lon": 5.19, "lat": 52.09},
+            {"lon": 5.21, "lat": 52.09},
+            {"lon": 5.21, "lat": 52.11},
+            {"lon": 5.19, "lat": 52.11},
+            {"lon": 5.19, "lat": 52.09},
+        ]
+        self.assertEqual(
+            bbox_from_osm_geometry(geometry),
+            (5.19, 52.09, 5.21, 52.11),
+        )
+
+    def test_bbox_from_osm_geometry_multipolygon_list_of_rings(self):
+        ring1 = [
+            {"lon": -8.637, "lat": 42.394},
+            {"lon": -8.630, "lat": 42.394},
+            {"lon": -8.630, "lat": 42.419},
+            {"lon": -8.637, "lat": 42.394},
+        ]
+        ring2 = [
+            {"lon": -8.64, "lat": 42.40},
+            {"lon": -8.63, "lat": 42.40},
+            {"lon": -8.63, "lat": 42.41},
+            {"lon": -8.64, "lat": 42.40},
+        ]
+        self.assertEqual(
+            bbox_from_osm_geometry([ring1, ring2]),
+            (-8.64, 42.394, -8.63, 42.419),
+        )
+
+    def test_bbox_from_osm_element_bounds(self):
+        elem = {
+            "type": "relation",
+            "id": 13081016,
+            "bounds": {
+                "minlat": 42.3944393,
+                "minlon": -8.6376998,
+                "maxlat": 42.4188695,
+                "maxlon": -8.6303364,
+            },
+        }
+        self.assertEqual(
+            bbox_from_osm_element(elem),
+            (-8.6376998, 42.3944393, -8.6303364, 42.4188695),
+        )
+
+    def test_bbox_from_osm_element_geometry(self):
+        elem = {
+            "type": "way",
+            "id": 123,
+            "geometry": [
+                {"lon": 5.2, "lat": 52.1},
+                {"lon": 5.3, "lat": 52.1},
+                {"lon": 5.3, "lat": 52.2},
+                {"lon": 5.2, "lat": 52.2},
+                {"lon": 5.2, "lat": 52.1},
+            ],
+        }
+        self.assertEqual(
+            bbox_from_osm_element(elem),
+            (5.2, 52.1, 5.3, 52.2),
+        )
+
+    def test_bbox_from_osm_element_members_with_geometry(self):
+        elem = {
+            "type": "relation",
+            "id": 13081016,
+            "members": [
+                {
+                    "type": "way",
+                    "ref": 874404092,
+                    "role": "outer",
+                    "geometry": [
+                        {"lat": 42.418, "lon": -8.636},
+                        {"lat": 42.417, "lon": -8.636},
+                        {"lat": 42.417, "lon": -8.635},
+                        {"lat": 42.418, "lon": -8.636},
+                    ],
+                },
+                {
+                    "type": "way",
+                    "ref": 972474940,
+                    "role": "outer",
+                    "geometry": [
+                        {"lat": 42.419, "lon": -8.637},
+                        {"lat": 42.418, "lon": -8.637},
+                        {"lat": 42.418, "lon": -8.636},
+                        {"lat": 42.419, "lon": -8.637},
+                    ],
+                },
+            ],
+        }
+        self.assertEqual(
+            bbox_from_osm_element(elem),
+            (-8.637, 42.417, -8.635, 42.419),
+        )
+
+    def test_bbox_from_osm_element_prefers_bounds_over_geometry(self):
+        elem = {
+            "bounds": {
+                "minlon": 1.0,
+                "minlat": 2.0,
+                "maxlon": 3.0,
+                "maxlat": 4.0,
+            },
+            "geometry": [
+                {"lon": 9.0, "lat": 9.0},
+                {"lon": 10.0, "lat": 10.0},
+                {"lon": 10.0, "lat": 9.0},
+            ],
+        }
+        self.assertEqual(bbox_from_osm_element(elem), (1.0, 2.0, 3.0, 4.0))
+
+    def test_bbox_from_osm_element_no_geometry_returns_none(self):
+        self.assertIsNone(bbox_from_osm_element({}))
+        self.assertIsNone(bbox_from_osm_element({"type": "relation", "id": 1}))
+
+    def test_bbox_from_osm_element_not_dict_returns_none(self):
+        self.assertIsNone(bbox_from_osm_element(None))
+        self.assertIsNone(bbox_from_osm_element([]))
 
 
 class ImportNatureReservesTest(TestCase):
@@ -94,6 +230,12 @@ class ImportNatureReservesTest(TestCase):
 
     @patch("api.extractors.OSMNatureReserveExtractor.extract")
     def test_import_nature_reserves_creates_records(self, mock_extract):
+        geometry = [
+            {"lon": 5.2, "lat": 52.1},
+            {"lon": 5.3, "lat": 52.1},
+            {"lon": 5.3, "lat": 52.2},
+            {"lon": 5.2, "lat": 52.1},
+        ]
         mock_reserves = [
             {
                 "id": "way_123456",
@@ -105,9 +247,11 @@ class ImportNatureReservesTest(TestCase):
                         "leisure": "nature_reserve",
                         "name": "Test Nature Reserve",
                     },
+                    "geometry": geometry,
                 },
                 "tags": {"leisure": "nature_reserve", "name": "Test Nature Reserve"},
                 "area_type": "nature_reserve",
+                "geometry": geometry,
             },
             {
                 "id": "relation_789012",
@@ -119,9 +263,11 @@ class ImportNatureReservesTest(TestCase):
                         "boundary": "protected_area",
                         "name": "Protected Area Test",
                     },
+                    "geometry": geometry,
                 },
                 "tags": {"boundary": "protected_area", "name": "Protected Area Test"},
                 "area_type": "protected_area_class_4",
+                "geometry": geometry,
             },
         ]
 
@@ -148,21 +294,34 @@ class ImportNatureReservesTest(TestCase):
 
     @patch("api.extractors.OSMNatureReserveExtractor.extract")
     def test_import_nature_reserves_updates_existing(self, mock_extract):
+        min_lon, min_lat, max_lon, max_lat = self.test_bbox
         NatureReserve.objects.create(
             id="way_123456",
             name="Old Name",
             osm_data={},
             tags={},
             area_type="nature_reserve",
+            min_lon=min_lon,
+            min_lat=min_lat,
+            max_lon=max_lon,
+            max_lat=max_lat,
         )
 
+        geometry = [
+            {"lon": 5.2, "lat": 52.1},
+            {"lon": 5.3, "lat": 52.1},
+            {"lon": 5.3, "lat": 52.2},
+            {"lon": 5.2, "lat": 52.2},
+            {"lon": 5.2, "lat": 52.1},
+        ]
         mock_reserves = [
             {
                 "id": "way_123456",
                 "name": "Updated Name",
-                "osm_data": {"type": "way", "id": 123456, "tags": {}},
+                "osm_data": {"type": "way", "id": 123456, "tags": {}, "geometry": geometry},
                 "tags": {},
                 "area_type": "nature_reserve",
+                "geometry": geometry,
             },
         ]
 
@@ -182,12 +341,17 @@ class ImportNatureReservesTest(TestCase):
 
     @patch("api.extractors.OSMNatureReserveExtractor.extract")
     def test_import_nature_reserves_clear_option(self, mock_extract):
+        min_lon, min_lat, max_lon, max_lat = self.test_bbox
         NatureReserve.objects.create(
             id="way_111",
             name="Old Reserve",
             osm_data={},
             tags={},
             area_type="nature_reserve",
+            min_lon=min_lon,
+            min_lat=min_lat,
+            max_lon=max_lon,
+            max_lat=max_lat,
         )
 
         mock_extract.return_value = []
@@ -312,3 +476,109 @@ class ImportNatureReservesTest(TestCase):
         self.assertIn("Extracting nature reserves from OpenStreetMap", output)
         self.assertIn("Found 1 nature reserves", output)
         self.assertIn("Created: 1", output)
+
+
+class AtPointTest(TestCase):
+    """Tests for the at_point endpoint logic (bbox filter + point-in-geometry)."""
+
+    def setUp(self):
+        self.lat = 52.1
+        self.lon = 5.2
+        self.osm_data_with_geometry = {
+            "type": "way",
+            "id": 999,
+            "tags": {"leisure": "nature_reserve", "name": "AtPoint Test Reserve"},
+            "geometry": [
+                {"lat": 52.09, "lon": 5.19},
+                {"lat": 52.11, "lon": 5.19},
+                {"lat": 52.11, "lon": 5.21},
+                {"lat": 52.09, "lon": 5.21},
+                {"lat": 52.09, "lon": 5.19},
+            ],
+        }
+        self.bbox = (5.19, 52.09, 5.21, 52.11)
+
+    def test_geometry_and_point_in_geometry(self):
+        geom = geometry_from_osm_element(self.osm_data_with_geometry)
+        self.assertIsNotNone(geom, "geometry_from_osm_element should return a polygon")
+        self.assertEqual(geom.get("type"), "Polygon")
+        inside = point_in_geojson_geometry(self.lon, self.lat, geom)
+        self.assertTrue(inside, "point (5.2, 52.1) should be inside the test polygon")
+
+    def test_at_point_returns_reserve_when_bbox_and_geometry_contain_point(self):
+        min_lon, min_lat, max_lon, max_lat = self.bbox
+        NatureReserve.objects.create(
+            id="way_999",
+            name="AtPoint Test Reserve",
+            osm_data=self.osm_data_with_geometry,
+            tags={"leisure": "nature_reserve"},
+            area_type="nature_reserve",
+            min_lon=min_lon,
+            min_lat=min_lat,
+            max_lon=max_lon,
+            max_lat=max_lat,
+        )
+        response = self.client.get(
+            "/api/nature-reserves/at_point/",
+            {"lat": self.lat, "lon": self.lon},
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        data = response.json()
+        self.assertIsInstance(data, list)
+        self.assertGreaterEqual(
+            len(data), 1,
+            f"at_point should return at least one reserve; got {data}",
+        )
+        ids = [r["id"] for r in data]
+        self.assertIn("way_999", ids)
+
+    def test_at_point_returns_400_without_lat_or_lon(self):
+        response = self.client.get("/api/nature-reserves/at_point/", {})
+        self.assertEqual(response.status_code, 400)
+        response = self.client.get("/api/nature-reserves/at_point/", {"lat": 52.1})
+        self.assertEqual(response.status_code, 400)
+        response = self.client.get("/api/nature-reserves/at_point/", {"lon": 5.2})
+        self.assertEqual(response.status_code, 400)
+
+    def test_at_point_returns_overlapping_reserves(self):
+        min_lon, min_lat, max_lon, max_lat = self.bbox
+        for i, reserve_id in enumerate(["way_999", "way_998"]):
+            NatureReserve.objects.create(
+                id=reserve_id,
+                name=f"Overlap Reserve {i}",
+                osm_data={
+                    "type": "way",
+                    "id": 999 - i,
+                    "tags": {"leisure": "nature_reserve"},
+                    "geometry": [
+                        {"lat": 52.09, "lon": 5.19},
+                        {"lat": 52.11, "lon": 5.19},
+                        {"lat": 52.11, "lon": 5.21},
+                        {"lat": 52.09, "lon": 5.21},
+                        {"lat": 52.09, "lon": 5.19},
+                    ],
+                },
+                tags={},
+                area_type="nature_reserve",
+                min_lon=min_lon,
+                min_lat=min_lat,
+                max_lon=max_lon,
+                max_lat=max_lat,
+            )
+        response = self.client.get(
+            "/api/nature-reserves/at_point/",
+            {"lat": self.lat, "lon": self.lon},
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 2, f"expected 2 overlapping reserves, got {data}")
+        ids = {r["id"] for r in data}
+        self.assertEqual(ids, {"way_999", "way_998"})
+
+    def test_at_point_returns_empty_when_no_reserve_at_point(self):
+        response = self.client.get(
+            "/api/nature-reserves/at_point/",
+            {"lat": self.lat, "lon": self.lon},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), [])

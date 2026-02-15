@@ -108,18 +108,26 @@ class Command(BaseCommand):
                     reserve_data.get("osm_data") or {}
                 ).get("geometry")
                 bbox = bbox_from_osm_geometry(geometry)
+                if bbox is None:
+                    rid = reserve_data.get("id")
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"  Reserve {idx} ({rid}): no geometry, skipping"
+                        )
+                    )
+                    error_count += 1
+                    continue
+                min_lon, min_lat, max_lon, max_lat = bbox
                 defaults: dict = {
                     "name": reserve_data["name"],
                     "osm_data": reserve_data["osm_data"],
                     "tags": reserve_data["tags"],
                     "area_type": reserve_data["area_type"],
+                    "min_lon": min_lon,
+                    "min_lat": min_lat,
+                    "max_lon": max_lon,
+                    "max_lat": max_lat,
                 }
-                if bbox is not None:
-                    min_lon, min_lat, max_lon, max_lat = bbox
-                    defaults["min_lon"] = min_lon
-                    defaults["min_lat"] = min_lat
-                    defaults["max_lon"] = max_lon
-                    defaults["max_lat"] = max_lat
                 reserve, created = NatureReserve.objects.update_or_create(
                     id=reserve_data["id"],
                     defaults=defaults,

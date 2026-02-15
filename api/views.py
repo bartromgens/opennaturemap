@@ -1,3 +1,5 @@
+import logging
+
 from django.db.models import Count
 from rest_framework import viewsets, filters
 from rest_framework.decorators import action
@@ -17,6 +19,8 @@ from .serializers import (
     NatureReserveSerializer,
     OperatorSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class OperatorViewSet(viewsets.ReadOnlyModelViewSet):
@@ -99,6 +103,7 @@ class NatureReserveViewSet(viewsets.ReadOnlyModelViewSet):
                 {"error": "lat and lon must be numbers"},
                 status=400,
             )
+        logger.info("at_point request lat=%.6f lon=%.6f", lat, lon)
         at_point_fields = ["id", "name", "area_type", "osm_data"]
         qs = NatureReserve.objects.filter(
             min_lat__isnull=False,
@@ -110,20 +115,41 @@ class NatureReserveViewSet(viewsets.ReadOnlyModelViewSet):
             min_lon__lte=lon,
             max_lon__gte=lon,
         ).only(*at_point_fields)
+        reserves_bbox = list(qs)
+        logger.info(
+            "at_point bbox query: reserves_in_bbox=%d (ids=%s)",
+            len(reserves_bbox),
+            [r.id for r in reserves_bbox[:10]]
+            + (["..."] if len(reserves_bbox) > 10 else []),
+        )
         containing: list[tuple[NatureReserve, dict]] = []
-        for reserve in qs:
+        no_geom = 0
+        geom_not_containing = 0
+        for reserve in reserves_bbox:
             geom = geometry_from_osm_element(reserve.osm_data)
-            if geom and point_in_geojson_geometry(lon, lat, geom):
+            if geom is None:
+                no_geom += 1
+                logger.debug(
+                    "at_point reserve %s: no geometry from osm_data",
+                    reserve.id,
+                )
+                continue
+            if point_in_geojson_geometry(lon, lat, geom):
                 containing.append((reserve, geom))
-        if not containing:
-            fallback_qs = NatureReserve.objects.only(*at_point_fields)[:5000]
-            for reserve in fallback_qs:
-                geom = geometry_from_osm_element(reserve.osm_data)
-                if geom and point_in_geojson_geometry(lon, lat, geom):
-                    containing.append((reserve, geom))
-                    if len(containing) >= 50:
-                        break
+            else:
+                geom_not_containing += 1
+        logger.info(
+            "at_point primary: no_geom=%d geom_not_containing=%d containing=%d",
+            no_geom,
+            geom_not_containing,
+            len(containing),
+        )
         containing.sort(key=lambda pair: geojson_geometry_area(pair[1]))
         reserves = [reserve for reserve, _ in containing]
+        logger.info(
+            "at_point response: result_count=%d ids=%s",
+            len(reserves),
+            [r.id for r in reserves],
+        )
         serializer = NatureReserveListItemAtPointSerializer(reserves, many=True)
         return Response(serializer.data)

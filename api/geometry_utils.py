@@ -223,8 +223,63 @@ def bbox_from_osm_geometry(
         "MultiPolygon",
     ):
         return bbox_from_geojson_geometry(raw)
-    if isinstance(raw, list) and len(raw) >= 3:
-        lons, lats = _points_to_lonlats(raw)
-        if lons and lats:
-            return (min(lons), min(lats), max(lons), max(lats))
+    if isinstance(raw, list):
+        if not raw:
+            return None
+        first = raw[0]
+        if isinstance(first, (list, tuple)):
+            bboxes = [bbox_from_osm_geometry(item) for item in raw]
+            bboxes = [b for b in bboxes if b is not None]
+            if not bboxes:
+                return None
+            return (
+                min(b[0] for b in bboxes),
+                min(b[1] for b in bboxes),
+                max(b[2] for b in bboxes),
+                max(b[3] for b in bboxes),
+            )
+        if len(raw) >= 3:
+            lons, lats = _points_to_lonlats(raw)
+            if lons and lats:
+                return (min(lons), min(lats), max(lons), max(lats))
+    return None
+
+
+def bbox_from_osm_element(
+    elem: dict[str, Any],
+) -> tuple[float, float, float, float] | None:
+    """Bbox from a stored OSM element (way/relation). Uses bounds, geometry, or members."""
+    if not isinstance(elem, dict):
+        return None
+    bounds = elem.get("bounds")
+    if isinstance(bounds, dict):
+        minlon = bounds.get("minlon")
+        minlat = bounds.get("minlat")
+        maxlon = bounds.get("maxlon")
+        maxlat = bounds.get("maxlat")
+        if all(x is not None for x in (minlon, minlat, maxlon, maxlat)):
+            return (float(minlon), float(minlat), float(maxlon), float(maxlat))
+    geometry = elem.get("geometry")
+    if geometry is not None:
+        bbox = bbox_from_osm_geometry(geometry)
+        if bbox is not None:
+            return bbox
+    members = elem.get("members")
+    if isinstance(members, list):
+        bboxes: list[tuple[float, float, float, float]] = []
+        for m in members:
+            if not isinstance(m, dict):
+                continue
+            geom = m.get("geometry")
+            if geom is not None:
+                b = bbox_from_osm_geometry(geom)
+                if b is not None:
+                    bboxes.append(b)
+        if bboxes:
+            return (
+                min(b[0] for b in bboxes),
+                min(b[1] for b in bboxes),
+                max(b[2] for b in bboxes),
+                max(b[3] for b in bboxes),
+            )
     return None
