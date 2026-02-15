@@ -27,7 +27,8 @@
                 <ul class="tag-list">
                   @for (key of objectKeys(reserve()!.tags); track key) {
                     <li>
-                      <strong>{{ key }}</strong>: {{ reserve()!.tags[key] }}
+                      <strong>{{ key }}</strong
+                      >: {{ reserve()!.tags[key] }}
                     </li>
                   }
                 </ul>

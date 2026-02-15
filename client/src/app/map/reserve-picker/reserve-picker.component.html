@@ -5,7 +5,7 @@
       ? {
           left: position()!.x + 'px',
           top: position()!.y + 'px',
-          transform: 'translate(-50%, -50%)'
+          transform: 'translate(-50%, -50%)',
         }
       : { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }
   "
@@ -17,11 +17,7 @@
   } @else if (reserves().length > 1) {
     <div class="reserve-picker-card">
       @for (item of reserves(); track item.id) {
-        <button
-          type="button"
-          class="reserve-picker-item"
-          (click)="onSelect(item)"
-        >
+        <button type="button" class="reserve-picker-item" (click)="onSelect(item)">
           {{ item.name || item.id }}
         </button>
       }

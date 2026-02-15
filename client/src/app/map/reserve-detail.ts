@@ -3,7 +3,9 @@ export interface OperatorRef {
   name: string;
 }
 
-export type ReserveGeometry = { type: 'Polygon'; coordinates: number[][][] } | { type: 'MultiPolygon'; coordinates: number[][][][] };
+export type ReserveGeometry =
+  | { type: 'Polygon'; coordinates: number[][][] }
+  | { type: 'MultiPolygon'; coordinates: number[][][][] };
 
 export interface NatureReserveDetail {
   id: string;

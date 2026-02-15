@@ -1,9 +1,4 @@
-import {
-  Component,
-  AfterViewInit,
-  OnDestroy,
-  ChangeDetectorRef,
-} from '@angular/core';
+import { Component, AfterViewInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient, HttpParams } from '@angular/common/http';
@@ -36,7 +31,7 @@ const RESERVE_LAYER_STYLE: L.PathOptions = {
   stroke: true,
   color: '#2e7d32',
   weight: 2,
-  opacity: 0.8
+  opacity: 0.8,
 };
 
 const HIGHLIGHT_LAYER_STYLE: L.PathOptions = {
@@ -46,7 +41,7 @@ const HIGHLIGHT_LAYER_STYLE: L.PathOptions = {
   stroke: true,
   color: '#ed6c02',
   weight: 3,
-  opacity: 1
+  opacity: 1,
 };
 
 function geometryToLatLngBounds(geometry: ReserveGeometry): L.LatLngBounds | null {
@@ -93,7 +88,7 @@ export interface OperatorOption {
     ReserveSidebarComponent,
   ],
   templateUrl: './map.component.html',
-  styleUrl: './map.component.css'
+  styleUrl: './map.component.css',
 })
 export class MapComponent implements AfterViewInit, OnDestroy {
   private map: L.Map | null = null;
@@ -117,7 +112,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     private route: ActivatedRoute,
     private router: Router,
     private http: HttpClient,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
   ) {
     this.searchInput$
       .pipe(
@@ -133,9 +128,9 @@ export class MapComponent implements AfterViewInit, OnDestroy {
           const params = new HttpParams().set('search', trimmed).set('page_size', '20');
           return this.http.get<{ results: NatureReserveListItem[] } | NatureReserveListItem[]>(
             `${API_BASE}/nature-reserves/`,
-            { params }
+            { params },
           );
-        })
+        }),
       )
       .subscribe({
         next: (body) => {
@@ -147,7 +142,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
           this.searchLoading = false;
           this.searchResults = [];
           this.cdr.detectChanges();
-        }
+        },
       });
   }
 
@@ -200,12 +195,14 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   }
 
   private loadOperators(): void {
-    this.http.get<OperatorOption[] | { results: OperatorOption[] }>(`${API_BASE}/operators/`).subscribe({
-      next: (body) => {
-        this.operators = Array.isArray(body) ? body : (body.results ?? []);
-        this.cdr.detectChanges();
-      }
-    });
+    this.http
+      .get<OperatorOption[] | { results: OperatorOption[] }>(`${API_BASE}/operators/`)
+      .subscribe({
+        next: (body) => {
+          this.operators = Array.isArray(body) ? body : (body.results ?? []);
+          this.cdr.detectChanges();
+        },
+      });
   }
 
   private removeVectorTileLayer(): void {
@@ -218,25 +215,26 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   private addVectorTileLayer(): void {
     if (!this.map) return;
     const selectedId = this.selectedOperatorId;
-    const styleFn = (properties: Record<string, unknown>, _zoom: number): L.PathOptions | L.PathOptions[] => {
+    const styleFn = (
+      properties: Record<string, unknown>,
+      _zoom: number,
+    ): L.PathOptions | L.PathOptions[] => {
       const raw = properties?.['operator_ids'];
       const operatorIds = this.parseOperatorIdsFromTile(raw);
       const show =
-        selectedId === null ||
-        (operatorIds.length > 0 && operatorIds.includes(Number(selectedId)));
+        selectedId === null || (operatorIds.length > 0 && operatorIds.includes(Number(selectedId)));
       return show ? RESERVE_LAYER_STYLE : [];
     };
-    const layer = (L as unknown as { vectorGrid: { protobuf: (url: string, opts: object) => L.Layer } }).vectorGrid.protobuf(
-      VECTOR_TILE_URL,
-      {
-        vectorTileLayerStyles: {
-          nature_reserves: styleFn
-        },
-        interactive: true,
-        getFeatureId: (f: { properties: { id?: string; osm_id?: string } }) =>
-          f.properties.id ?? String(f.properties.osm_id ?? '')
-      }
-    );
+    const layer = (
+      L as unknown as { vectorGrid: { protobuf: (url: string, opts: object) => L.Layer } }
+    ).vectorGrid.protobuf(VECTOR_TILE_URL, {
+      vectorTileLayerStyles: {
+        nature_reserves: styleFn,
+      },
+      interactive: true,
+      getFeatureId: (f: { properties: { id?: string; osm_id?: string } }) =>
+        f.properties.id ?? String(f.properties.osm_id ?? ''),
+    });
     layer.on('click', (e: L.LeafletMouseEvent) => this.onVectorTileClick(e));
     layer.addTo(this.map);
     this.vectorTileLayer = layer;
@@ -276,39 +274,48 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  /**
+   * On vector tile click we call the at_point API because Leaflet.VectorGrid only
+   * exposes one feature per click (e.layer). It has no API to get "all features at
+   * this point", so we need the backend to detect multiple reserves and show the
+   * picker. The single clicked feature id is used as fallback when at_point
+   * returns no results (fallbackReserveFromTileClick).
+   */
   private onVectorTileClick(e: L.LeafletMouseEvent): void {
     this.reservesAtPoint = [];
-    this.pickerPosition = this.map
-      ? this.map.latLngToContainerPoint(e.latlng)
-      : null;
+    this.pickerPosition = this.map ? this.map.latLngToContainerPoint(e.latlng) : null;
     const lat = e.latlng.lat;
     const lng = e.latlng.lng;
     this.atPointLoading = true;
     this.cdr.detectChanges();
     const params = new HttpParams().set('lat', String(lat)).set('lon', String(lng));
-    this.http.get<NatureReserveListItem[]>(`${API_BASE}/nature-reserves/at_point/`, { params }).subscribe({
-      next: (reserves) => {
-        this.atPointLoading = false;
-        if (reserves.length === 0) {
+    this.http
+      .get<NatureReserveListItem[]>(`${API_BASE}/nature-reserves/at_point/`, { params })
+      .subscribe({
+        next: (reserves) => {
+          this.atPointLoading = false;
+          if (reserves.length === 0) {
+            this.fallbackReserveFromTileClick(e);
+          } else if (reserves.length === 1) {
+            this.loadReserve(reserves[0].id);
+          } else {
+            this.reservesAtPoint = reserves;
+          }
+          this.cdr.detectChanges();
+        },
+        error: () => {
+          this.atPointLoading = false;
           this.fallbackReserveFromTileClick(e);
-        } else if (reserves.length === 1) {
-          this.loadReserve(reserves[0].id);
-        } else {
-          this.reservesAtPoint = reserves;
-        }
-        this.cdr.detectChanges();
-      },
-      error: () => {
-        this.atPointLoading = false;
-        this.fallbackReserveFromTileClick(e);
-        this.cdr.detectChanges();
-      }
-    });
+          this.cdr.detectChanges();
+        },
+      });
   }
 
   private fallbackReserveFromTileClick(e: L.LeafletMouseEvent): void {
     const ev = e as L.LeafletMouseEvent & { layer?: { properties?: Record<string, unknown> } };
-    const props = ev.layer?.properties ?? (e as unknown as { target?: { properties?: Record<string, unknown> } }).target?.properties;
+    const props =
+      ev.layer?.properties ??
+      (e as unknown as { target?: { properties?: Record<string, unknown> } }).target?.properties;
     const rawId = props?.['id'] != null ? String(props['id']) : undefined;
     const osmType = props?.['osm_type'] != null ? String(props['osm_type']) : undefined;
     const id = rawId ? this.normalizeReserveId(rawId, osmType) : undefined;
@@ -322,10 +329,9 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     const zoom = params.get('zoom');
     const center: L.LatLngTuple = [
       lat != null && !Number.isNaN(Number(lat)) ? Number(lat) : DEFAULT_CENTER[0],
-      lng != null && !Number.isNaN(Number(lng)) ? Number(lng) : DEFAULT_CENTER[1]
+      lng != null && !Number.isNaN(Number(lng)) ? Number(lng) : DEFAULT_CENTER[1],
     ];
-    const zoomLevel =
-      zoom != null && !Number.isNaN(Number(zoom)) ? Number(zoom) : DEFAULT_ZOOM;
+    const zoomLevel = zoom != null && !Number.isNaN(Number(zoom)) ? Number(zoom) : DEFAULT_ZOOM;
     return { center, zoom: zoomLevel };
   }
 
@@ -336,7 +342,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     const queryParams: Record<string, string | number | null> = {
       lat: center.lat.toFixed(5),
       lng: center.lng.toFixed(5),
-      zoom
+      zoom,
     };
     if (this.selectedReserve) {
       queryParams['reserve'] = this.selectedReserve.id;
@@ -350,7 +356,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
       relativeTo: this.route,
       queryParams: queryParams as Record<string, string | number>,
       queryParamsHandling: 'merge',
-      replaceUrl: true
+      replaceUrl: true,
     });
   }
 
@@ -367,7 +373,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     const feature = {
       type: 'Feature' as const,
       geometry: this.selectedReserve.geometry,
-      properties: {}
+      properties: {},
     };
     const layer = L.geoJSON(feature, { style: () => HIGHLIGHT_LAYER_STYLE });
     layer.addTo(this.map);
@@ -406,13 +412,13 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     const { center, zoom } = this.getInitialMapState();
     this.map = L.map('map', {
       center,
-      zoom
+      zoom,
     });
 
     this.map.on('moveend', () => this.updateUrlFromMap());
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
+      attribution: '© OpenStreetMap contributors',
     }).addTo(this.map);
 
     this.addVectorTileLayer();
@@ -445,7 +451,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
         this.selectedReserve = null;
         this.sidebarExpanded = true;
         this.cdr.detectChanges();
-      }
+      },
     });
   }
 
@@ -462,7 +468,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
       const queryParams: Record<string, string | number | null> = {
         lat: center.lat.toFixed(5),
         lng: center.lng.toFixed(5),
-        zoom
+        zoom,
       };
       if (this.selectedOperatorId != null) {
         queryParams['operator'] = this.selectedOperatorId;
@@ -471,7 +477,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
         relativeTo: this.route,
         queryParams: queryParams as Record<string, string | number>,
         queryParamsHandling: '',
-        replaceUrl: true
+        replaceUrl: true,
       });
     }
   }
