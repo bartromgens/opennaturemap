@@ -48,6 +48,13 @@ class Command(BaseCommand):
             action="store_true",
             help="Overwrite output file if it exists",
         )
+        parser.add_argument(
+            "--maximum-tile-bytes",
+            type=int,
+            default=1_000_000,
+            metavar="BYTES",
+            help="Max size per tile in bytes (default: 1000000). Tippecanoe default is 500000; increase if tiles exceed limit.",
+        )
 
     def handle(self, *args, **options):
         input_path = options.get("input")
@@ -56,6 +63,7 @@ class Command(BaseCommand):
         max_zoom = options["max_zoom"]
         layer_name = options["layer_name"]
         force = options["force"]
+        maximum_tile_bytes = options["maximum_tile_bytes"]
 
         if output_path.exists() and not force:
             raise CommandError(
@@ -112,6 +120,8 @@ class Command(BaseCommand):
                 str(min_zoom),
                 "--maximum-zoom",
                 str(max_zoom),
+                "--maximum-tile-bytes",
+                str(maximum_tile_bytes),
                 str(input_path),
             ]
 
