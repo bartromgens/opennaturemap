@@ -71,6 +71,37 @@ export interface OperatorOption {
   reserve_count: number;
 }
 
+/** Protection level categories from docs/protect_class.md */
+const PROTECTION_LEVEL_OPTIONS: { value: string; label: string }[] = [
+  { value: 'strict', label: 'Strict / wilderness' },
+  { value: 'national_park', label: 'National park' },
+  { value: 'habitat_monument', label: 'Habitat / species / monument' },
+  { value: 'landscape_sustainable', label: 'Landscape / sustainable use' },
+  { value: 'eu_international', label: 'EU/international (continental)' },
+  { value: 'international_intercontinental', label: 'International (intercontinental)' },
+  { value: 'resource', label: 'Resource protection' },
+  { value: 'social_cultural', label: 'Social / cultural protection' },
+  { value: 'other', label: 'Other / local / unclassified' },
+];
+
+function protectionLevelFromProtectClass(protectClass: string | null | undefined): string | null {
+  if (protectClass == null || protectClass === '') return null;
+  const v = String(protectClass).trim().toLowerCase();
+  if (v === '1a' || v === '1b' || v === '1') return 'strict';
+  if (v === '2') return 'national_park';
+  if (v === '3' || v === '4') return 'habitat_monument';
+  if (v === '5' || v === '6') return 'landscape_sustainable';
+  if (v === '97') return 'eu_international';
+  if (v === '98') return 'international_intercontinental';
+  const n = Number(v);
+  if (!Number.isNaN(n) && Number.isInteger(n)) {
+    if (n >= 11 && n <= 19) return 'resource';
+    if (n >= 21 && n <= 29) return 'social_cultural';
+  }
+  if (v === '7' || v === '99') return 'other';
+  return 'other';
+}
+
 @Component({
   selector: 'app-map',
   standalone: true,
@@ -97,6 +128,8 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   private searchInput$ = new Subject<string>();
 
   protected operators: OperatorOption[] = [];
+  protected protectionLevelOptions = PROTECTION_LEVEL_OPTIONS;
+  protected selectedProtectionLevel: string | null = null;
   protected selectedOperatorId: number | null = null;
   protected selectedReserve: NatureReserveDetail | null = null;
   protected sidebarExpanded = false;
@@ -148,6 +181,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
 
   ngAfterViewInit(): void {
     this.loadOperators();
+    this.applyProtectionLevelFromUrl();
     this.applyOperatorFromUrl();
     this.initMap();
     this.applyReserveFromUrl();
@@ -159,6 +193,12 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     if (this.map) {
       this.map.remove();
     }
+  }
+
+  protected onProtectionLevelChange(value: string | null): void {
+    this.selectedProtectionLevel = value;
+    this.updateVectorTileLayer();
+    this.updateUrlFromMap();
   }
 
   protected onOperatorFilterChange(value: number | null): void {
@@ -214,15 +254,27 @@ export class MapComponent implements AfterViewInit, OnDestroy {
 
   private addVectorTileLayer(): void {
     if (!this.map) return;
-    const selectedId = this.selectedOperatorId;
+    const selectedOperatorId = this.selectedOperatorId;
+    const selectedProtectionLevel = this.selectedProtectionLevel;
     const styleFn = (
       properties: Record<string, unknown>,
       _zoom: number,
     ): L.PathOptions | L.PathOptions[] => {
       const raw = properties?.['operator_ids'];
       const operatorIds = this.parseOperatorIdsFromTile(raw);
-      const show =
-        selectedId === null || (operatorIds.length > 0 && operatorIds.includes(Number(selectedId)));
+      const operatorMatch =
+        selectedOperatorId === null ||
+        (operatorIds.length > 0 && operatorIds.includes(Number(selectedOperatorId)));
+      const rawProtectClass = properties?.['protect_class'];
+      const pc =
+        typeof rawProtectClass === 'string'
+          ? rawProtectClass
+          : rawProtectClass != null
+            ? String(rawProtectClass)
+            : null;
+      const level = protectionLevelFromProtectClass(pc);
+      const protectionMatch = selectedProtectionLevel === null || level === selectedProtectionLevel;
+      const show = operatorMatch && protectionMatch;
       return show ? RESERVE_LAYER_STYLE : [];
     };
     const layer = (
@@ -347,6 +399,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     if (this.selectedReserve) {
       queryParams['reserve'] = this.selectedReserve.id;
     }
+    queryParams['protection_level'] = this.selectedProtectionLevel;
     if (this.selectedOperatorId != null) {
       queryParams['operator'] = this.selectedOperatorId;
     } else {
@@ -388,6 +441,16 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     const bounds = geometryToLatLngBounds(geometry);
     if (bounds) {
       this.map.fitBounds(bounds, { maxZoom: 14, padding: [40, 40] });
+    }
+  }
+
+  private applyProtectionLevelFromUrl(): void {
+    const raw = this.route.snapshot.queryParamMap.get('protection_level');
+    if (raw != null && raw !== '') {
+      const valid = PROTECTION_LEVEL_OPTIONS.some((o) => o.value === raw);
+      if (valid) {
+        this.selectedProtectionLevel = raw;
+      }
     }
   }
 
@@ -469,6 +532,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
         lat: center.lat.toFixed(5),
         lng: center.lng.toFixed(5),
         zoom,
+        protection_level: this.selectedProtectionLevel,
       };
       if (this.selectedOperatorId != null) {
         queryParams['operator'] = this.selectedOperatorId;

@@ -466,6 +466,7 @@ class ImportNatureReservesTest(TestCase):
         self.assertEqual(reserve.tags["boundary"], "protected_area")
         self.assertEqual(reserve.tags["leisure"], "nature_reserve")
         self.assertEqual(reserve.tags["protect_class"], "97")
+        self.assertEqual(reserve.protect_class, "97")
         self.assertIsNotNone(reserve.osm_data)
         self.assertEqual(reserve.osm_data["id"], 7010743)
         self.assertEqual(reserve.osm_data["type"], "relation")

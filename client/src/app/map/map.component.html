@@ -34,6 +34,22 @@
     <mat-form-field
       appearance="outline"
       subscriptSizing="dynamic"
+      class="toolbar-field protection-level-filter"
+    >
+      <mat-label>Protection level</mat-label>
+      <mat-select
+        [value]="selectedProtectionLevel"
+        (selectionChange)="onProtectionLevelChange($event.value)"
+      >
+        <mat-option [value]="null">All levels</mat-option>
+        @for (opt of protectionLevelOptions; track opt.value) {
+          <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field
+      appearance="outline"
+      subscriptSizing="dynamic"
       class="toolbar-field operator-filter"
     >
       <mat-label>Operator</mat-label>

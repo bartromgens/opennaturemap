@@ -118,11 +118,13 @@ class Command(BaseCommand):
                     error_count += 1
                     continue
                 min_lon, min_lat, max_lon, max_lat = bbox
+                protect_class = (tags.get("protect_class") or "").strip() or None
                 defaults: dict = {
                     "name": reserve_data["name"],
                     "osm_data": reserve_data["osm_data"],
                     "tags": reserve_data["tags"],
                     "area_type": reserve_data["area_type"],
+                    "protect_class": protect_class,
                     "min_lon": min_lon,
                     "min_lat": min_lat,
                     "max_lon": max_lon,

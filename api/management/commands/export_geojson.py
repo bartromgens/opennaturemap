@@ -72,6 +72,8 @@ class Command(BaseCommand):
                         str(i) for i in ids
                     )
                     feature["properties"].update(reserve.tags)
+                    if reserve.protect_class:
+                        feature["properties"]["protect_class"] = reserve.protect_class
 
                     all_features.append(feature)
 

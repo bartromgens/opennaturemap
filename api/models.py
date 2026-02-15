@@ -66,6 +66,7 @@ class NatureReserve(models.Model):
     osm_data = models.JSONField()
     tags = models.JSONField(default=dict)
     area_type = models.CharField(max_length=100)
+    protect_class = models.CharField(max_length=100, null=True, blank=True)
     min_lat = models.FloatField(db_index=True)
     max_lat = models.FloatField(db_index=True)
     min_lon = models.FloatField(db_index=True)

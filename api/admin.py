@@ -52,6 +52,7 @@ class NatureReserveAdmin(admin.ModelAdmin):
         "name",
         operators_display,
         "area_type",
+        "protect_class",
         "min_lat",
         "max_lat",
         "min_lon",
@@ -59,7 +60,7 @@ class NatureReserveAdmin(admin.ModelAdmin):
         "created_at",
         "updated_at",
     ]
-    list_filter = ["area_type", "operators", "created_at"]
+    list_filter = ["area_type", "protect_class", "operators", "created_at"]
     search_fields = ["id", "name"]
     readonly_fields = ["created_at", "updated_at", "osm_data", "tags"]
     filter_horizontal = ["operators"]
@@ -68,6 +69,7 @@ class NatureReserveAdmin(admin.ModelAdmin):
         "name",
         "operators",
         "area_type",
+        "protect_class",
         "tags",
         "osm_data",
         "created_at",
