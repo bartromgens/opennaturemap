@@ -80,7 +80,9 @@ class Command(BaseCommand):
                 if point_in_geojson_geometry(lon, lat, geom):
                     containing.append(reserve)
             self.stdout.write(f"Scanned first {min(scan_n, total)} reserves:")
-            self.stdout.write(f"  no_geom={no_geom}, containing point={len(containing)}")
+            self.stdout.write(
+                f"  no_geom={no_geom}, containing point={len(containing)}"
+            )
             for r in containing:
                 self.stdout.write(
                     f"  {r.id} {r.name or '(no name)'} "

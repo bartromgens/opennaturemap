@@ -276,8 +276,7 @@ class Command(BaseCommand):
                 tiles = self.split_bbox_into_tiles(bbox, tile_size_km)
                 km = tile_size_km if tile_size_km is not None else self.TILE_SIZE_KM
                 self.stdout.write(
-                    f"Splitting area into {len(tiles)} tiles "
-                    f"(~{km}x{km} km each)"
+                    f"Splitting area into {len(tiles)} tiles " f"(~{km}x{km} km each)"
                 )
 
                 total_created = 0

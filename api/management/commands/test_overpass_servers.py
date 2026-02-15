@@ -44,7 +44,11 @@ def test_server(
                 ok=False,
                 duration_sec=duration,
                 status_code=response.status_code,
-                error=response.text[:500] if response.text else f"HTTP {response.status_code}",
+                error=(
+                    response.text[:500]
+                    if response.text
+                    else f"HTTP {response.status_code}"
+                ),
                 raw_response=response.text if capture_response else None,
             )
 
@@ -112,9 +116,7 @@ class Command(BaseCommand):
         self.stdout.write(f"{phase_name}\n")
         for url in servers:
             self.stdout.write(f"  {url} ... ", ending="")
-            result = test_server(
-                url, query, timeout=timeout, capture_response=verbose
-            )
+            result = test_server(url, query, timeout=timeout, capture_response=verbose)
             results.append(result)
             if result.ok:
                 self.stdout.write(f"OK ({result.duration_sec:.2f}s)")
@@ -150,9 +152,7 @@ class Command(BaseCommand):
         ok_results = [r for r in results if r.ok]
         if ok_results:
             best = min(ok_results, key=lambda r: r.duration_sec)
-            self.stdout.write(
-                f"  Fastest: {best.url} ({best.duration_sec:.2f}s)\n"
-            )
+            self.stdout.write(f"  Fastest: {best.url} ({best.duration_sec:.2f}s)\n")
         return ok_count
 
     def handle(self, *args, **options):
@@ -197,6 +197,4 @@ class Command(BaseCommand):
 
         failed = total_tests - total_ok
         if failed:
-            raise CommandError(
-                f"{failed} test(s) failed across both phases"
-            )
+            raise CommandError(f"{failed} test(s) failed across both phases")

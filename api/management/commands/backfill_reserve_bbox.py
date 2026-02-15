@@ -8,9 +8,7 @@ FALLBACK_BBOX = (0.0, 0.0, 0.0, 0.0)
 
 
 class Command(BaseCommand):
-    help = (
-        "Set min_lat, max_lat, min_lon, max_lon for reserves missing any bbox value."
-    )
+    help = "Set min_lat, max_lat, min_lon, max_lon for reserves missing any bbox value."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -64,9 +62,7 @@ class Command(BaseCommand):
                 reserve.min_lon, reserve.min_lat, reserve.max_lon, reserve.max_lat = (
                     bbox
                 )
-                reserve.save(
-                    update_fields=["min_lon", "min_lat", "max_lon", "max_lat"]
-                )
+                reserve.save(update_fields=["min_lon", "min_lat", "max_lon", "max_lat"])
             updated += 1
         msg = f"Processed {updated} reserve(s)"
         if fallback_count:

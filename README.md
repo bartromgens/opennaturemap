@@ -1,6 +1,6 @@
 # OpenNatureMap
 
-A web app for browsing nature reserves on an interactive map. 
+A web app for browsing nature reserves on an interactive map.
 
 It uses OpenStreetMap data (via Overpass), a Django REST API, and an Angular frontend with vector tiles served by tileserver-gl.
 
@@ -73,7 +73,6 @@ ng serve
 ```
 
 App: http://localhost:4200/
-
 
 ## Data
 

@@ -318,7 +318,12 @@ class ImportNatureReservesTest(TestCase):
             {
                 "id": "way_123456",
                 "name": "Updated Name",
-                "osm_data": {"type": "way", "id": 123456, "tags": {}, "geometry": geometry},
+                "osm_data": {
+                    "type": "way",
+                    "id": 123456,
+                    "tags": {},
+                    "geometry": geometry,
+                },
                 "tags": {},
                 "area_type": "nature_reserve",
                 "geometry": geometry,
@@ -526,7 +531,8 @@ class AtPointTest(TestCase):
         data = response.json()
         self.assertIsInstance(data, list)
         self.assertGreaterEqual(
-            len(data), 1,
+            len(data),
+            1,
             f"at_point should return at least one reserve; got {data}",
         )
         ids = [r["id"] for r in data]
