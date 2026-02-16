@@ -11,7 +11,19 @@
         <p class="sidebar__error">{{ error() }}</p>
       } @else if (reserve()) {
         <div class="sidebar__content">
-          <h3 class="reserve-name">{{ reserve()!.name || 'Unnamed reserve' }}</h3>
+          <h3 class="reserve-name">
+            @if (wikipediaUrl(reserve()!); as url) {
+              <a
+                [href]="url"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="reserve-name__link"
+                >{{ reserve()!.name || 'Unnamed reserve' }}</a
+              >
+            } @else {
+              {{ reserve()!.name || 'Unnamed reserve' }}
+            }
+          </h3>
           <dl class="reserve-details">
             <dt>Type</dt>
             <dd>{{ reserve()!.area_type }}</dd>

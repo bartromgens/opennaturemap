@@ -26,6 +26,20 @@ export class ReserveSidebarComponent {
     return (reserve.operators ?? []).map((op) => op.name).join(', ');
   }
 
+  protected wikipediaUrl(reserve: NatureReserveDetail): string | null {
+    const raw = reserve.tags?.['wikipedia'];
+    if (typeof raw !== 'string') return null;
+    const colon = raw.indexOf(':');
+    if (colon <= 0) return null;
+    const lang = raw.slice(0, colon);
+    const title = raw
+      .slice(colon + 1)
+      .trim()
+      .replace(/\s+/g, '_');
+    if (!lang || !title) return null;
+    return `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(title)}`;
+  }
+
   protected onClose(): void {
     this.closed.emit();
   }

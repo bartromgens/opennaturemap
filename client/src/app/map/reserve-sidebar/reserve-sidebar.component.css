@@ -65,6 +65,14 @@
   line-height: 1.3;
 }
 
+.reserve-name__link {
+  text-decoration: none;
+}
+
+.reserve-name__link:hover {
+  text-decoration: underline;
+}
+
 .reserve-details {
   margin: 0;
   font-size: 0.875rem;
