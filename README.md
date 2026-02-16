@@ -109,3 +109,7 @@ Options:
 - `--min-zoom`, `--max-zoom` — zoom range (default 0–14)
 - `--layer-name` — layer name in MBTiles (default: `nature_reserves`)
 - `--force` — overwrite existing file
+
+## Alternatives
+
+- [Protected Planet](https://www.protectedplanet.net) — global database of protected areas (IUCN/UNEP-WCMC)
