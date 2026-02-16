@@ -5,7 +5,6 @@ from pathlib import Path
 from django.core.management.base import BaseCommand, CommandError
 from django.core.management import call_command
 from django.conf import settings
-import tempfile
 import os
 
 
@@ -55,6 +54,20 @@ class Command(BaseCommand):
             metavar="BYTES",
             help="Max size per tile in bytes (default: 1000000). Tippecanoe default is 500000; increase if tiles exceed limit.",
         )
+        parser.add_argument(
+            "--low-detail",
+            type=int,
+            default=12,
+            metavar="DETAIL",
+            help="Detail (resolution) at zoom levels below max zoom; lower = smaller tiles (default: 12, tippecanoe default 12).",
+        )
+        parser.add_argument(
+            "--minimum-detail",
+            type=int,
+            default=7,
+            metavar="DETAIL",
+            help="Minimum detail to try when a tile exceeds size limit; lower = more reduction allowed (default: 7, tippecanoe default 7).",
+        )
 
     def handle(self, *args, **options):
         input_path = options.get("input")
@@ -64,6 +77,8 @@ class Command(BaseCommand):
         layer_name = options["layer_name"]
         force = options["force"]
         maximum_tile_bytes = options["maximum_tile_bytes"]
+        low_detail = options["low_detail"]
+        minimum_detail = options["minimum_detail"]
 
         if output_path.exists() and not force:
             raise CommandError(
@@ -122,6 +137,12 @@ class Command(BaseCommand):
                 str(max_zoom),
                 "--maximum-tile-bytes",
                 str(maximum_tile_bytes),
+                "--low-detail",
+                str(low_detail),
+                "--minimum-detail",
+                str(minimum_detail),
+                "--drop-densest-as-needed",
+                "--extend-zooms-if-still-dropping",
                 str(input_path),
             ]
 
