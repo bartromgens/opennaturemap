@@ -22,6 +22,7 @@ class ServerResult:
     status_code: int | None = None
     error: str | None = None
     element_count: int | None = None
+    timestamp_osm_base: str | None = None
     raw_response: str | None = None
 
 
@@ -82,12 +83,15 @@ def test_server(
             )
 
         elements = data.get("elements", [])
+        osm3s = data.get("osm3s") or {}
+        timestamp_osm_base = osm3s.get("timestamp_osm_base")
         return ServerResult(
             url=url,
             ok=True,
             duration_sec=duration,
             status_code=200,
             element_count=len(elements),
+            timestamp_osm_base=timestamp_osm_base,
         )
     except requests.exceptions.Timeout:
         duration = time.perf_counter() - start
@@ -135,7 +139,12 @@ class Command(BaseCommand):
             result = test_server(url, query, timeout=timeout, capture_response=verbose)
             results.append(result)
             if result.ok:
-                self.stdout.write(f"OK ({result.duration_sec:.2f}s)")
+                ts = (
+                    f" [OSM base: {result.timestamp_osm_base}]"
+                    if result.timestamp_osm_base
+                    else ""
+                )
+                self.stdout.write(f"OK ({result.duration_sec:.2f}s){ts}")
             else:
                 self.stdout.write(f"FAIL ({result.duration_sec:.2f}s)")
         return results
@@ -153,8 +162,14 @@ class Command(BaseCommand):
             status = "OK" if r.ok else "ERROR"
             time_str = f"{r.duration_sec:.2f}s"
             extra = ""
-            if r.ok and r.element_count is not None:
-                extra = f" (elements: {r.element_count})"
+            if r.ok:
+                parts = []
+                if r.element_count is not None:
+                    parts.append(f"elements: {r.element_count}")
+                if r.timestamp_osm_base:
+                    parts.append(f"OSM base: {r.timestamp_osm_base}")
+                if parts:
+                    extra = f" ({', '.join(parts)})"
             elif r.error:
                 err = r.error.replace("\n", " ").strip()
                 extra = f" — {err[:450]}{'...' if len(err) > 450 else ''}"
