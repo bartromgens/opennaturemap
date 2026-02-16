@@ -50,9 +50,9 @@ class Command(BaseCommand):
         parser.add_argument(
             "--maximum-tile-bytes",
             type=int,
-            default=1_000_000,
+            default=500_000,
             metavar="BYTES",
-            help="Max size per tile in bytes (default: 1000000). Tippecanoe default is 500000; increase if tiles exceed limit.",
+            help="Max size per tile in bytes (default: 500000). Tippecanoe default is 500000; increase if tiles exceed limit.",
         )
         parser.add_argument(
             "--low-detail",
