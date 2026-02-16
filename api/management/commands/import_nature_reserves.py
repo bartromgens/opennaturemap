@@ -13,6 +13,7 @@ from api.models import ImportGrid, NatureReserve, Operator
 NETHERLANDS_BBOX: Tuple[float, float, float, float] = (3.2, 50.75, 7.2, 53.7)
 SPAIN_BBOX: Tuple[float, float, float, float] = (-9.3, 36.0, 4.3, 43.8)
 FRANCE_BBOX: Tuple[float, float, float, float] = (-5.5, 41.3, 9.6, 51.1)
+SWITZERLAND_BBOX: Tuple[float, float, float, float] = (5.9, 45.8, 10.5, 47.8)
 
 
 class Command(BaseCommand):
@@ -149,7 +150,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--region",
-            choices=["netherlands", "spain", "france"],
+            choices=["netherlands", "spain", "france", "switzerland"],
             default="netherlands",
             help="Country/region to import (default: netherlands)",
         )
@@ -236,6 +237,10 @@ class Command(BaseCommand):
             bbox = FRANCE_BBOX
             bbox_name = "France"
             area_iso = "FR"
+        elif options["region"] == "switzerland":
+            bbox = SWITZERLAND_BBOX
+            bbox_name = "Switzerland"
+            area_iso = "CH"
         elif options["bbox"]:
             try:
                 coords = [float(x) for x in options["bbox"].split(",")]
