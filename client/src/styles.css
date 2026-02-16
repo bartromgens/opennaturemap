@@ -26,3 +26,9 @@ app-root {
   margin: 0;
   padding: 0;
 }
+
+/* Protection badge chip in reserve sidebar is a link; show pointer (encapsulation prevents component CSS from affecting chip internals) */
+app-reserve-sidebar mat-chip.protection-badge-link,
+app-reserve-sidebar mat-chip.protection-badge-link * {
+  cursor: pointer !important;
+}

@@ -77,10 +77,6 @@ mat-chip-set {
   margin-bottom: 12px;
 }
 
-mat-chip.protection-badge-link {
-  cursor: pointer;
-}
-
 mat-chip.protection-badge-link:hover {
   filter: brightness(0.95);
 }
