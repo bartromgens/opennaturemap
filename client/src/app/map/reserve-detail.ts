@@ -11,6 +11,7 @@ export interface NatureReserveDetail {
   id: string;
   name: string | null;
   area_type: string;
+  protect_class: string | null;
   tags: Record<string, unknown>;
   operators: OperatorRef[];
   geometry: ReserveGeometry | null;

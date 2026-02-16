@@ -1,0 +1,110 @@
+<div class="page">
+  <header class="page-header">
+    <a routerLink="/" class="back-link">
+      <mat-icon>arrow_back</mat-icon>
+      Map
+    </a>
+    <h1 class="page-title">Protection classes</h1>
+  </header>
+
+  <main class="page-content">
+    <p class="intro">
+      On the map, reserves are filtered by <strong>protection level</strong> using the same
+      categories as below. In OpenStreetMap, protected areas use
+      <code>boundary=protected_area</code> (or <code>boundary=national_park</code>) with
+      <strong>protect_class</strong> to describe the type and level of protection.
+    </p>
+
+    <p class="sources">
+      Sources:
+      <a
+        href="https://wiki.openstreetmap.org/wiki/Tag:boundary%3Dprotected_area"
+        target="_blank"
+        rel="noopener noreferrer"
+        >OSM boundary=protected_area</a
+      >,
+      <a
+        href="https://wiki.openstreetmap.org/wiki/Key:protect_class"
+        target="_blank"
+        rel="noopener noreferrer"
+        >OSM protect_class</a
+      >,
+      <a
+        href="https://wiki.openstreetmap.org/wiki/Template:IUCN_Categories"
+        target="_blank"
+        rel="noopener noreferrer"
+        >OSM IUCN categories</a
+      >,
+      <a
+        href="https://en.wikipedia.org/wiki/IUCN_protected_area_categories"
+        target="_blank"
+        rel="noopener noreferrer"
+        >IUCN protected area categories</a
+      >.
+    </p>
+
+    <section class="overview-section">
+      <h2>Overview</h2>
+      <p><code>protect_class</code> is split into four ranges:</p>
+      <table class="overview-table">
+        <thead>
+          <tr>
+            <th>Range</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>1a, 1b, 1–6</strong></td>
+            <td>Nature conservation, aligned with IUCN protected area categories.</td>
+          </tr>
+          <tr>
+            <td><strong>7, 97–99</strong></td>
+            <td>Other nature conservation (EU/international schemes, or local).</td>
+          </tr>
+          <tr>
+            <td><strong>11–19</strong></td>
+            <td>Resource protection (water, species, land; single-resource focus).</td>
+          </tr>
+          <tr>
+            <td><strong>21–29</strong></td>
+            <td>Social/cultural protection (community, heritage, recreation, etc.).</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="categories-section">
+      <h2>Filter categories used on the map</h2>
+      <p>
+        The toolbar <strong>Protection level</strong> dropdown uses these groups. Each reserve is
+        assigned to one category based on its <code>protect_class</code> value.
+      </p>
+      <ul class="category-list">
+        @for (cat of categories; track cat.value) {
+          <li class="category-item">
+            <span
+              class="protection-badge protection-badge--{{ cat.value }}"
+              [attr.title]="'OSM protect_class: ' + cat.osmValues"
+              >{{ cat.label }}</span
+            >
+            <span class="category-osm"
+              >OSM: <code>{{ cat.osmValues }}</code></span
+            >
+            <p class="category-desc">{{ cat.description }}</p>
+          </li>
+        }
+      </ul>
+    </section>
+
+    <section class="notes-section">
+      <h2>Country-specific values</h2>
+      <p>
+        <code>protect_class</code> can also be a <strong>text value</strong> from national law or
+        local practice, for example <em>Natuurschoonwet 1928</em> (Netherlands) or
+        <em>Natuurschoonwet 1928, opengesteld</em> / <em>niet opengesteld</em>. These are stored
+        as-is; on the map they fall under <strong>Other / local / unclassified</strong>.
+      </p>
+    </section>
+  </main>
+</div>

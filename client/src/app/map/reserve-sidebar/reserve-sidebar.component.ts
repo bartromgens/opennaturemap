@@ -1,13 +1,15 @@
 import { Component, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import type { NatureReserveDetail } from '../reserve-detail';
+import { getProtectionLevelLabel, protectionLevelFromProtectClass } from '../protection-class';
 
 @Component({
   selector: 'app-reserve-sidebar',
   standalone: true,
-  imports: [CommonModule, MatButtonModule, MatIconModule],
+  imports: [CommonModule, RouterLink, MatButtonModule, MatIconModule],
   templateUrl: './reserve-sidebar.component.html',
   styleUrl: './reserve-sidebar.component.css',
 })
@@ -40,7 +42,27 @@ export class ReserveSidebarComponent {
     return `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(title)}`;
   }
 
+  protected websiteUrl(reserve: NatureReserveDetail): string | null {
+    const keys = ['website', 'contact:website', 'url'];
+    for (const key of keys) {
+      const val = reserve.tags?.[key];
+      if (typeof val === 'string' && val.trim().length > 0) return val.trim();
+    }
+    return null;
+  }
+
   protected onClose(): void {
     this.closed.emit();
+  }
+
+  protected protectionBadgeText(reserve: NatureReserveDetail): string | null {
+    const pc = reserve.protect_class;
+    if (pc == null || String(pc).trim() === '') return null;
+    return getProtectionLevelLabel(pc) ?? String(pc).trim();
+  }
+
+  protected protectionBadgeClass(reserve: NatureReserveDetail): string {
+    const value = protectionLevelFromProtectClass(reserve.protect_class);
+    return value != null ? `protection-badge protection-badge--${value}` : 'protection-badge';
   }
 }

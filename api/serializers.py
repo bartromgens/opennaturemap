@@ -38,6 +38,7 @@ class NatureReserveDetailSerializer(serializers.ModelSerializer):
             "name",
             "tags",
             "area_type",
+            "protect_class",
             "operators",
             "geometry",
             "created_at",

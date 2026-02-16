@@ -24,7 +24,30 @@
               {{ reserve()!.name || 'Unnamed reserve' }}
             }
           </h3>
+          @if (protectionBadgeText(reserve()!); as badgeText) {
+            <a
+              routerLink="/protection-classes"
+              [class]="protectionBadgeClass(reserve()!)"
+              [attr.title]="
+                'Protection class: ' + (reserve()!.protect_class ?? '') + ' – learn more'
+              "
+              class="protection-badge-link"
+              >{{ badgeText }}</a
+            >
+          }
           <dl class="reserve-details">
+            @if (websiteUrl(reserve()!); as url) {
+              <dt>Website</dt>
+              <dd>
+                <a
+                  [href]="url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="reserve-details__link"
+                  >{{ url }}</a
+                >
+              </dd>
+            }
             <dt>Type</dt>
             <dd>{{ reserve()!.area_type }}</dd>
             @if (reserve()!.operators.length) {
