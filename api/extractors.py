@@ -11,18 +11,23 @@ class ServerManager:
         "https://overpass-api.de/api/interpreter",  # Germany
         "https://osm.hpi.de/overpass/api/interpreter",  # Germany (Potsdam)
         "https://overpass.private.coffee/api/interpreter",  # Austria
-        "https://overpass.openstreetmap.jp/api/interpreter",  # Japan (fallback)
+        "https://z.overpass-api.de/api/interpreter",
+        "https://overpass.kumi.systems/api/interpreter",
+        "https://lz4.overpass-api.de/api/interpreter",
     ]
 
     def __init__(
         self,
         servers: Optional[List[str]] = None,
         max_consecutive_failures: int = 3,
+        requests_before_retry_failed: int = 50,
     ):
         self.servers = servers if servers is not None else self.DEFAULT_SERVERS
         self.max_consecutive_failures = max_consecutive_failures
+        self.requests_before_retry_failed = requests_before_retry_failed
         self._server_index = 0
         self._server_failures: Dict[str, int] = {}
+        self._successful_requests_since_skip: int = 0
 
     def get_servers_for_query(
         self, output_callback: Optional[Callable[[str], None]] = None
@@ -66,6 +71,10 @@ class ServerManager:
 
     def record_success(self, server_url: str) -> None:
         self._server_failures[server_url] = 0
+        self._successful_requests_since_skip += 1
+        if self._successful_requests_since_skip >= self.requests_before_retry_failed:
+            self._server_failures.clear()
+            self._successful_requests_since_skip = 0
 
 
 class OSMNatureReserveExtractor:
