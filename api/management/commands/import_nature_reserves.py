@@ -174,6 +174,12 @@ class Command(BaseCommand):
             help="Custom bounding box as: min_lon,min_lat,max_lon,max_lat (default: Netherlands)",
         )
         parser.add_argument(
+            "--center",
+            type=str,
+            metavar="LON,LAT",
+            help="Single coordinate lon,lat; imports one default-sized tile (~30x30 km) centered on this point",
+        )
+        parser.add_argument(
             "--test-region",
             action="store_true",
             help="Import from a small test region in Utrecht around coordinate 52.11695/5.21434",
@@ -277,6 +283,34 @@ class Command(BaseCommand):
                     self.style.ERROR(
                         "Invalid bounding box format. Use: min_lon,min_lat,max_lon,max_lat"
                     )
+                )
+                return
+        elif options["center"]:
+            try:
+                coords = [float(x) for x in options["center"].split(",")]
+                if len(coords) == 2:
+                    center_lon, center_lat = coords
+                    lon_degrees, lat_degrees = self.calculate_tile_size_degrees(
+                        center_lat
+                    )
+                    half_lon = lon_degrees / 2.0
+                    half_lat = lat_degrees / 2.0
+                    bbox = (
+                        center_lon - half_lon,
+                        center_lat - half_lat,
+                        center_lon + half_lon,
+                        center_lat + half_lat,
+                    )
+                    bbox_name = f"center {center_lon},{center_lat}"
+                    area_iso = None
+                else:
+                    self.stdout.write(
+                        self.style.ERROR("Center must be 2 coordinates: lon,lat")
+                    )
+                    return
+            except ValueError:
+                self.stdout.write(
+                    self.style.ERROR("Invalid center format. Use: lon,lat")
                 )
                 return
 
