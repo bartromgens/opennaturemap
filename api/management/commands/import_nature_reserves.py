@@ -116,7 +116,6 @@ class Command(BaseCommand):
                             f"  Reserve {idx} ({rid}): no geometry, skipping"
                         )
                     )
-                    error_count += 1
                     continue
                 min_lon, min_lat, max_lon, max_lat = bbox
                 protect_class = (tags.get("protect_class") or "").strip() or None
