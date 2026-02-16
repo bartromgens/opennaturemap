@@ -4,15 +4,12 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from api.geometry_utils import (
-    geojson_geometry_area,
-    osm_element_to_geojson_features,
-)
+from api.geometry_utils import geojson_geometry_area, reserve_geojson_features
 from api.models import NatureReserve
 
 
 class Command(BaseCommand):
-    help = "Export NatureReserves to GeoJSON using osm2geojson"
+    help = "Export NatureReserves to GeoJSON (from stored geojson or osm_data)"
 
     def add_arguments(self, parser):
         default_out = settings.BASE_DIR / "data" / "nature_reserves.geojson"
@@ -37,7 +34,7 @@ class Command(BaseCommand):
             return
 
         self.stdout.write(f"Found {total_count} nature reserves")
-        self.stdout.write("Converting to GeoJSON using osm2geojson...")
+        self.stdout.write("Building GeoJSON features from reserves...")
 
         all_features = []
         processed_count = 0
@@ -45,38 +42,20 @@ class Command(BaseCommand):
 
         for reserve in reserves:
             try:
-                features = osm_element_to_geojson_features(reserve.osm_data)
-
-                for feature in features:
-                    if (
-                        not isinstance(feature, dict)
-                        or feature.get("type") != "Feature"
-                    ):
-                        continue
-
-                    feature["id"] = reserve.id
-                    if "properties" not in feature:
-                        feature["properties"] = {}
-
-                    feature["properties"]["id"] = reserve.id
-                    osm_type = (
-                        reserve.osm_data.get("type")
-                        if isinstance(reserve.osm_data, dict)
-                        else None
-                    ) or reserve.id.split("_")[0]
-                    feature["properties"]["osm_type"] = osm_type
-                    feature["properties"]["name"] = reserve.name
-                    feature["properties"]["area_type"] = reserve.area_type
-                    ids = list(reserve.operators.values_list("id", flat=True))
-                    feature["properties"]["operator_ids"] = ",".join(
-                        str(i) for i in ids
+                if reserve.geojson:
+                    features = reserve.geojson
+                else:
+                    operator_ids = list(reserve.operators.values_list("id", flat=True))
+                    features = reserve_geojson_features(
+                        reserve.osm_data or {},
+                        reserve.id,
+                        reserve.name,
+                        reserve.area_type,
+                        operator_ids,
+                        reserve.tags or {},
+                        reserve.protect_class,
                     )
-                    feature["properties"].update(reserve.tags)
-                    if reserve.protect_class:
-                        feature["properties"]["protect_class"] = reserve.protect_class
-
-                    all_features.append(feature)
-
+                all_features.extend(features)
                 processed_count += 1
 
                 if processed_count % 100 == 0:

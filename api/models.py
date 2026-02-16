@@ -64,6 +64,7 @@ class NatureReserve(models.Model):
         blank=True,
     )
     osm_data = models.JSONField()
+    geojson = models.JSONField(null=True, blank=True)
     tags = models.JSONField(default=dict)
     area_type = models.CharField(max_length=100)
     protect_class = models.CharField(max_length=100, null=True, blank=True)

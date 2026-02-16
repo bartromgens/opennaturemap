@@ -7,7 +7,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from api.extractors import OSMNatureReserveExtractor
-from api.geometry_utils import bbox_from_osm_geometry
+from api.geometry_utils import bbox_from_osm_geometry, reserve_geojson_features
 from api.models import ImportGrid, NatureReserve, Operator
 
 NETHERLANDS_BBOX: Tuple[float, float, float, float] = (3.2, 50.75, 7.2, 53.7)
@@ -122,9 +122,19 @@ class Command(BaseCommand):
                     continue
                 min_lon, min_lat, max_lon, max_lat = bbox
                 protect_class = (tags.get("protect_class") or "").strip() or None
+                geojson_list = reserve_geojson_features(
+                    reserve_data["osm_data"],
+                    reserve_data["id"],
+                    reserve_data.get("name"),
+                    reserve_data["area_type"],
+                    [o.id for o in operator_list],
+                    reserve_data.get("tags") or {},
+                    protect_class,
+                )
                 defaults: dict = {
                     "name": reserve_data["name"],
                     "osm_data": reserve_data["osm_data"],
+                    "geojson": geojson_list if geojson_list else None,
                     "tags": reserve_data["tags"],
                     "area_type": reserve_data["area_type"],
                     "protect_class": protect_class,

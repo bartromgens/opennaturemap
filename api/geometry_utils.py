@@ -134,6 +134,43 @@ def _overpass_geometry_to_geojson(raw: list[Any]) -> dict | None:
     return {"type": "Polygon", "coordinates": [ring]}
 
 
+def reserve_geojson_features(
+    osm_data: dict,
+    reserve_id: str,
+    name: str | None,
+    area_type: str,
+    operator_ids: list[int],
+    tags: dict,
+    protect_class: str | None,
+) -> list[dict]:
+    """Build GeoJSON Feature dicts for a reserve (same structure as export). Returns [] if no geometry."""
+    raw_features = osm_element_to_geojson_features(osm_data or {})
+    result: list[dict] = []
+    osm_type = (
+        osm_data.get("type") if isinstance(osm_data, dict) else None
+    ) or reserve_id.split("_")[0]
+    for feature in raw_features:
+        if not isinstance(feature, dict) or feature.get("type") != "Feature":
+            continue
+        props = dict(tags) if tags else {}
+        props["id"] = reserve_id
+        props["osm_type"] = osm_type
+        props["name"] = name or ""
+        props["area_type"] = area_type
+        props["operator_ids"] = ",".join(str(i) for i in operator_ids)
+        if protect_class:
+            props["protect_class"] = protect_class
+        result.append(
+            {
+                "type": "Feature",
+                "id": reserve_id,
+                "geometry": feature.get("geometry"),
+                "properties": props,
+            }
+        )
+    return result
+
+
 def geometry_from_osm_element(osm_data: dict) -> dict | None:
     """First GeoJSON geometry from OSM element, or None."""
     features = osm_element_to_geojson_features(osm_data)
