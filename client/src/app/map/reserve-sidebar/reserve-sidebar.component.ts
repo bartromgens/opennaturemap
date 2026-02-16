@@ -1,7 +1,8 @@
 import { Component, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
+import { MatChipsModule } from '@angular/material/chips';
 import { MatIconModule } from '@angular/material/icon';
 import type { NatureReserveDetail } from '../reserve-detail';
 import { getProtectionLevelLabel, protectionLevelFromProtectClass } from '../protection-class';
@@ -9,7 +10,7 @@ import { getProtectionLevelLabel, protectionLevelFromProtectClass } from '../pro
 @Component({
   selector: 'app-reserve-sidebar',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatButtonModule, MatIconModule],
+  imports: [CommonModule, MatButtonModule, MatChipsModule, MatIconModule],
   templateUrl: './reserve-sidebar.component.html',
   styleUrl: './reserve-sidebar.component.css',
 })
@@ -20,12 +21,14 @@ export class ReserveSidebarComponent {
 
   readonly closed = output<void>();
 
-  protected objectKeys(obj: Record<string, unknown>): string[] {
-    return Object.keys(obj ?? {});
+  constructor(private router: Router) {}
+
+  protected navigateToProtectionClasses(): void {
+    this.router.navigate(['/protection-classes']);
   }
 
-  protected operatorNames(reserve: NatureReserveDetail): string {
-    return (reserve.operators ?? []).map((op) => op.name).join(', ');
+  protected objectKeys(obj: Record<string, unknown>): string[] {
+    return Object.keys(obj ?? {});
   }
 
   protected wikipediaUrl(reserve: NatureReserveDetail): string | null {
@@ -49,6 +52,10 @@ export class ReserveSidebarComponent {
       if (typeof val === 'string' && val.trim().length > 0) return val.trim();
     }
     return null;
+  }
+
+  protected websiteDisplayUrl(url: string): string {
+    return url.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
   }
 
   protected onClose(): void {

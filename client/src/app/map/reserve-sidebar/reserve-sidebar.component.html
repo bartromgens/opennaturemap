@@ -25,15 +25,17 @@
             }
           </h3>
           @if (protectionBadgeText(reserve()!); as badgeText) {
-            <a
-              routerLink="/protection-classes"
-              [class]="protectionBadgeClass(reserve()!)"
-              [attr.title]="
-                'Protection class: ' + (reserve()!.protect_class ?? '') + ' – learn more'
-              "
-              class="protection-badge-link"
-              >{{ badgeText }}</a
-            >
+            <mat-chip-set>
+              <mat-chip
+                [class]="protectionBadgeClass(reserve()!)"
+                [attr.title]="
+                  'Protection class: ' + (reserve()!.protect_class ?? '') + ' – learn more'
+                "
+                (click)="navigateToProtectionClasses()"
+                class="protection-badge-link"
+                >{{ badgeText }}</mat-chip
+              >
+            </mat-chip-set>
           }
           <dl class="reserve-details">
             @if (websiteUrl(reserve()!); as url) {
@@ -44,18 +46,20 @@
                   target="_blank"
                   rel="noopener noreferrer"
                   class="reserve-details__link"
-                  >{{ url }}</a
+                  >{{ websiteDisplayUrl(url) }}</a
                 >
               </dd>
             }
-            <dt>Type</dt>
-            <dd>{{ reserve()!.area_type }}</dd>
             @if (reserve()!.operators.length) {
               <dt>Operators</dt>
-              <dd>{{ operatorNames(reserve()!) }}</dd>
+              <dd>
+                <mat-chip-set>
+                  @for (op of reserve()!.operators; track op.id) {
+                    <mat-chip>{{ op.name }}</mat-chip>
+                  }
+                </mat-chip-set>
+              </dd>
             }
-            <dt>ID</dt>
-            <dd class="reserve-id">{{ reserve()!.id }}</dd>
             @if (reserve()!.tags && objectKeys(reserve()!.tags).length) {
               <dt>Tags</dt>
               <dd>

@@ -83,11 +83,13 @@
       <ul class="category-list">
         @for (cat of categories; track cat.value) {
           <li class="category-item">
-            <span
-              class="protection-badge protection-badge--{{ cat.value }}"
-              [attr.title]="'OSM protect_class: ' + cat.osmValues"
-              >{{ cat.label }}</span
-            >
+            <mat-chip-set>
+              <mat-chip
+                class="protection-badge--{{ cat.value }}"
+                [attr.title]="'OSM protect_class: ' + cat.osmValues"
+                >{{ cat.label }}</mat-chip
+              >
+            </mat-chip-set>
             <span class="category-osm"
               >OSM: <code>{{ cat.osmValues }}</code></span
             >

@@ -73,67 +73,76 @@
   text-decoration: underline;
 }
 
-.protection-badge,
-.protection-badge-link {
-  display: inline-block;
+mat-chip-set {
   margin-bottom: 12px;
-  padding: 4px 10px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  line-height: 1.3;
-  border-radius: 999px;
-  background-color: #e8f5e9;
-  color: #1b5e20;
-  text-decoration: none;
 }
 
-.protection-badge-link:hover {
+mat-chip.protection-badge-link {
+  cursor: pointer;
+}
+
+mat-chip.protection-badge-link:hover {
   filter: brightness(0.95);
 }
 
-.protection-badge--strict {
-  background-color: #1b5e20;
-  color: #fff;
+mat-chip.protection-badge {
+  --mat-chip-elevated-container-color: #e8f5e9;
+  --mat-chip-label-text-color: #1b5e20;
+  --mat-chip-outline-width: 0;
 }
 
-.protection-badge--national_park {
-  background-color: #2e7d32;
-  color: #fff;
+mat-chip.protection-badge--strict {
+  --mat-chip-elevated-container-color: #1b5e20;
+  --mat-chip-label-text-color: #fff;
+  --mat-chip-outline-width: 0;
 }
 
-.protection-badge--habitat_monument {
-  background-color: #558b2f;
-  color: #fff;
+mat-chip.protection-badge--national_park {
+  --mat-chip-elevated-container-color: #2e7d32;
+  --mat-chip-label-text-color: #fff;
+  --mat-chip-outline-width: 0;
 }
 
-.protection-badge--landscape_sustainable {
-  background-color: #7cb342;
-  color: #1b5e20;
+mat-chip.protection-badge--habitat_monument {
+  --mat-chip-elevated-container-color: #558b2f;
+  --mat-chip-label-text-color: #fff;
+  --mat-chip-outline-width: 0;
 }
 
-.protection-badge--eu_international {
-  background-color: #1565c0;
-  color: #fff;
+mat-chip.protection-badge--landscape_sustainable {
+  --mat-chip-elevated-container-color: #7cb342;
+  --mat-chip-label-text-color: #1b5e20;
+  --mat-chip-outline-width: 0;
 }
 
-.protection-badge--international_intercontinental {
-  background-color: #0d47a1;
-  color: #fff;
+mat-chip.protection-badge--eu_international {
+  --mat-chip-elevated-container-color: #1565c0;
+  --mat-chip-label-text-color: #fff;
+  --mat-chip-outline-width: 0;
 }
 
-.protection-badge--resource {
-  background-color: #ef6c00;
-  color: #fff;
+mat-chip.protection-badge--international_intercontinental {
+  --mat-chip-elevated-container-color: #0d47a1;
+  --mat-chip-label-text-color: #fff;
+  --mat-chip-outline-width: 0;
 }
 
-.protection-badge--social_cultural {
-  background-color: #6d4c41;
-  color: #fff;
+mat-chip.protection-badge--resource {
+  --mat-chip-elevated-container-color: #ef6c00;
+  --mat-chip-label-text-color: #fff;
+  --mat-chip-outline-width: 0;
 }
 
-.protection-badge--other {
-  background-color: #757575;
-  color: #fff;
+mat-chip.protection-badge--social_cultural {
+  --mat-chip-elevated-container-color: #6d4c41;
+  --mat-chip-label-text-color: #fff;
+  --mat-chip-outline-width: 0;
+}
+
+mat-chip.protection-badge--other {
+  --mat-chip-elevated-container-color: #757575;
+  --mat-chip-label-text-color: #fff;
+  --mat-chip-outline-width: 0;
 }
 
 .reserve-details {
@@ -156,6 +165,11 @@
   margin: 0;
 }
 
+.reserve-details mat-chip-set {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
 .reserve-details__link {
   text-decoration: none;
   word-break: break-all;
@@ -163,12 +177,6 @@
 
 .reserve-details__link:hover {
   text-decoration: underline;
-}
-
-.reserve-id {
-  font-family: ui-monospace, monospace;
-  font-size: 0.8125rem;
-  word-break: break-all;
 }
 
 .tag-list {

@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
+import { MatChipsModule } from '@angular/material/chips';
 import { MatIconModule } from '@angular/material/icon';
 
 import { PROTECTION_LEVEL_OPTIONS } from '../map/protection-class';
@@ -63,7 +64,7 @@ const CATEGORY_DESCRIPTIONS: Record<string, { osmValues: string; description: st
 @Component({
   selector: 'app-protection-classes',
   standalone: true,
-  imports: [RouterLink, MatButtonModule, MatIconModule],
+  imports: [RouterLink, MatButtonModule, MatChipsModule, MatIconModule],
   templateUrl: './protection-classes.component.html',
   styleUrl: './protection-classes.component.css',
 })
