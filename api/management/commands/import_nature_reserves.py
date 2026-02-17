@@ -16,6 +16,8 @@ FRANCE_BBOX: Tuple[float, float, float, float] = (-5.5, 41.3, 9.6, 51.1)
 SWITZERLAND_BBOX: Tuple[float, float, float, float] = (5.9, 45.8, 10.5, 47.8)
 GERMANY_BBOX: Tuple[float, float, float, float] = (5.9, 47.3, 15.0, 55.1)
 BELGIUM_BBOX: Tuple[float, float, float, float] = (2.5, 49.5, 6.4, 51.5)
+ITALY_BBOX: Tuple[float, float, float, float] = (6.6, 36.6, 18.5, 47.1)
+NORWAY_BBOX: Tuple[float, float, float, float] = (4.6, 57.9, 31.1, 71.2)
 
 
 class Command(BaseCommand):
@@ -25,7 +27,7 @@ class Command(BaseCommand):
         "grid state is stored so imports can be resumed and grids can be refreshed by age."
     )
 
-    TILE_SIZE_KM = 30.0
+    TILE_SIZE_KM = 40.0
 
     def calculate_tile_size_degrees(
         self, center_lat: float, tile_size_km: float | None = None
@@ -169,6 +171,8 @@ class Command(BaseCommand):
                 "switzerland",
                 "germany",
                 "belgium",
+                "italy",
+                "norway",
             ],
             default="netherlands",
             help="Country/region to import (default: netherlands)",
@@ -187,7 +191,7 @@ class Command(BaseCommand):
             "--center",
             type=str,
             metavar="LON,LAT",
-            help="Single coordinate lon,lat; imports one default-sized tile (~30x30 km) centered on this point",
+            help=f"Single coordinate lon,lat; imports one default-sized tile (~{self.TILE_SIZE_KM}x{self.TILE_SIZE_KM} km) centered on this point",
         )
         parser.add_argument(
             "--test-region",
@@ -220,7 +224,7 @@ class Command(BaseCommand):
             type=float,
             default=None,
             metavar="KM",
-            help="Grid tile size in km (default: 30). Smaller tiles = lighter Overpass queries and fewer timeouts, but more requests.",
+            help=f"Grid tile size in km (default: {self.TILE_SIZE_KM}). Smaller tiles = lighter Overpass queries and fewer timeouts, but more requests.",
         )
 
     def handle(self, *args, **options):
@@ -274,6 +278,14 @@ class Command(BaseCommand):
             bbox = BELGIUM_BBOX
             bbox_name = "Belgium"
             area_iso = "BE"
+        elif options["region"] == "italy":
+            bbox = ITALY_BBOX
+            bbox_name = "Italy"
+            area_iso = "IT"
+        elif options["region"] == "norway":
+            bbox = NORWAY_BBOX
+            bbox_name = "Norway"
+            area_iso = "NO"
         elif options["bbox"]:
             try:
                 coords = [float(x) for x in options["bbox"].split(",")]
