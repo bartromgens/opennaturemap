@@ -135,7 +135,6 @@ class OSMNatureReserveExtractor:
 {area_line}(
 {chr(10).join(query_parts)}
 );
-(._;>;);
 out geom;"""
         return query
 
@@ -285,16 +284,12 @@ out geom;"""
     def extract_relation_geometry(
         self, relation: Dict[str, Any], all_elements: List[Dict[str, Any]]
     ) -> Optional[List[Any]]:
-        """Extract geometry from a relation by constructing it from member ways."""
-        geometry = relation.get("geometry")
-        if geometry and len(geometry) > 0:
-            return geometry
-
         members = relation.get("members", [])
         if not members:
             return None
 
-        # Build a map of way IDs to their geometries for quick lookup
+        # Fallback: build a map of way IDs to their geometries from separate
+        # way elements (present when the query uses `(._;>;)`).
         way_geometries: Dict[int, list] = {}
         for elem in all_elements:
             if elem.get("type") == "way" and "geometry" in elem:
@@ -315,7 +310,9 @@ out geom;"""
             if way_ref is None:
                 continue
 
-            way_geom = way_geometries.get(int(way_ref))
+            # `out geom` embeds geometry directly in the member; fall back to
+            # looking up the way as a separate element in `all_elements`.
+            way_geom = member.get("geometry") or way_geometries.get(int(way_ref))
             if not way_geom:
                 missing_ways.append(int(way_ref))
                 continue
@@ -327,8 +324,6 @@ out geom;"""
                 inner_rings.append(way_geom)
 
         if not outer_rings:
-            if missing_ways:
-                return None
             return None
 
         # For multipolygon, combine all rings
@@ -408,15 +403,9 @@ out geom;"""
             # For relations (especially multipolygons), try to extract geometry from members
             if elem_type == "relation":
                 relation_count += 1
-                # If no geometry or empty geometry, try to extract from members
-                if geometry is None or geometry == []:
-                    geometry = self.extract_relation_geometry(elem, elements)
-                    if geometry is None:
-                        no_geometry_count += 1
-                        filtered_count += 1
-                        continue
-                # If geometry exists but is empty list, also try to extract from members
-                elif isinstance(geometry, list) and len(geometry) == 0:
+                if geometry is None or (
+                    isinstance(geometry, list) and len(geometry) == 0
+                ):
                     geometry = self.extract_relation_geometry(elem, elements)
                     if geometry is None:
                         no_geometry_count += 1

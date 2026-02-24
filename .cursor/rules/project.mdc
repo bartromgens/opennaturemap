@@ -7,7 +7,7 @@ alwaysApply: true
 
 ## Documentation
 
-- Do **not** add docstrings or create README.md documentation unless the user explicitly asks for it.
+- Do **not** add docstrings on new code or create README.md documentation unless the user explicitly asks for it.
 
 ## End of Session
 

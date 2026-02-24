@@ -1,11 +1,12 @@
 import json
 import subprocess
-import shutil
 from pathlib import Path
-from django.core.management.base import BaseCommand, CommandError
-from django.core.management import call_command
+
 from django.conf import settings
-import os
+from django.core.management import call_command
+from django.core.management.base import BaseCommand, CommandError
+
+from api.management.utils import find_executable
 
 
 class Command(BaseCommand):
@@ -117,7 +118,20 @@ class Command(BaseCommand):
         if feature_count == 0:
             raise CommandError("GeoJSON file contains no features")
 
-        tippecanoe_path = self._find_tippecanoe()
+        tippecanoe_path = find_executable(
+            "tippecanoe",
+            [
+                "/usr/local/bin/tippecanoe",
+                "/usr/bin/tippecanoe",
+                "/opt/homebrew/bin/tippecanoe",
+            ],
+            "tippecanoe is not installed or not in PATH.\n"
+            "Install it:\n"
+            "  Ubuntu/Debian: sudo apt-get install tippecanoe\n"
+            "  macOS: brew install tippecanoe\n"
+            "  Or build from source: https://github.com/felt/tippecanoe",
+        )
+        self._log_tippecanoe_version(tippecanoe_path)
 
         self.stdout.write(f"Converting to MBTiles (zoom {min_zoom}-{max_zoom})...")
         self.stdout.write(f"Output: {output_path.absolute()}")
@@ -177,52 +191,27 @@ class Command(BaseCommand):
                 "  Or build from source: https://github.com/felt/tippecanoe"
             )
 
-    def _find_tippecanoe(self):
-        tippecanoe_path = shutil.which("tippecanoe")
-
-        if not tippecanoe_path:
-            common_paths = [
-                "/usr/local/bin/tippecanoe",
-                "/usr/bin/tippecanoe",
-                "/opt/homebrew/bin/tippecanoe",
-            ]
-            for path in common_paths:
-                if os.path.exists(path) and os.access(path, os.X_OK):
-                    tippecanoe_path = path
-                    break
-
-        if not tippecanoe_path:
-            raise CommandError(
-                "tippecanoe is not installed or not in PATH.\n"
-                "Install it:\n"
-                "  Ubuntu/Debian: sudo apt-get install tippecanoe\n"
-                "  macOS: brew install tippecanoe\n"
-                "  Or build from source: https://github.com/felt/tippecanoe"
+    def _log_tippecanoe_version(self, tippecanoe_path: str) -> None:
+        try:
+            result = subprocess.run(
+                [tippecanoe_path, "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
-
-        if not os.path.exists(tippecanoe_path):
-            raise CommandError(f"tippecanoe not found at {tippecanoe_path}")
-
-        if not os.access(tippecanoe_path, os.X_OK):
-            raise CommandError(f"tippecanoe at {tippecanoe_path} is not executable")
-
-        result = subprocess.run(
-            [tippecanoe_path, "--version"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if result.returncode == 0:
-            version = (result.stdout or result.stderr or "").strip()
-            if version:
-                self.stdout.write(f"Using tippecanoe: {version} ({tippecanoe_path})")
+            if result.returncode == 0:
+                version = (result.stdout or result.stderr or "").strip()
+                if version:
+                    self.stdout.write(
+                        f"Using tippecanoe: {version} ({tippecanoe_path})"
+                    )
+                else:
+                    self.stdout.write(f"Using tippecanoe at {tippecanoe_path}")
             else:
-                self.stdout.write(f"Using tippecanoe at {tippecanoe_path}")
-        else:
-            self.stdout.write(
-                self.style.WARNING(
-                    f"Could not verify tippecanoe version, but will attempt to use {tippecanoe_path}"
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Could not verify tippecanoe version, but will attempt to use {tippecanoe_path}"
+                    )
                 )
-            )
-
-        return tippecanoe_path
+        except Exception:
+            pass
