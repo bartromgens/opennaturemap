@@ -1,6 +1,11 @@
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import osm2geojson
+
+if TYPE_CHECKING:
+    from api.models import NatureReserve
 
 
 def _ring_area_deg2(ring: list[list[float]]) -> float:
@@ -279,6 +284,20 @@ def bbox_from_osm_geometry(
             lons, lats = _points_to_lonlats(raw)
             if lons and lats:
                 return (min(lons), min(lats), max(lons), max(lats))
+    return None
+
+
+def geometry_from_reserve(reserve: "NatureReserve") -> dict | None:
+    """GeoJSON geometry for a reserve, checking stored geojson before osm_data."""
+    if reserve.geojson:
+        for feature in reserve.geojson:
+            if not isinstance(feature, dict):
+                continue
+            geom = feature.get("geometry")
+            if geom and geom.get("type") and geom.get("coordinates"):
+                return geom
+    if reserve.osm_data:
+        return geometry_from_osm_element(reserve.osm_data)
     return None
 
 

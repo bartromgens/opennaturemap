@@ -139,3 +139,4 @@ docker compose -f docker-compose.prod.yml exec api python manage.py import_natur
 ## Alternatives
 
 - [Protected Planet](https://www.protectedplanet.net) — global database of protected areas (IUCN/UNEP-WCMC)
+  - See the Download button at https://www.protectedplanet.net/en/search-areas?geo_type=site

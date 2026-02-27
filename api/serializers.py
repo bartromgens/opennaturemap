@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .geometry_utils import geometry_from_osm_element
+from .geometry_utils import geometry_from_reserve
 from .models import NatureReserve, Operator
 
 
@@ -47,7 +47,7 @@ class NatureReserveDetailSerializer(serializers.ModelSerializer):
         read_only_fields = ["created_at", "updated_at"]
 
     def get_geometry(self, obj: NatureReserve) -> dict | None:
-        return geometry_from_osm_element(obj.osm_data)
+        return geometry_from_reserve(obj)
 
 
 class NatureReserveListItemAtPointSerializer(serializers.ModelSerializer):
@@ -65,7 +65,7 @@ class NatureReserveGeoJSONSerializer(serializers.Serializer):
     def to_representation(self, instance):
         serializer = NatureReserveSerializer(instance)
         data = serializer.data
-        geometry = geometry_from_osm_element(instance.osm_data)
+        geometry = geometry_from_reserve(instance)
         return {
             "type": "Feature",
             "id": data["id"],

@@ -120,4 +120,5 @@ dist/
 # Project specific
 *.geojson
 data/*.mbtiles
+data/raw/
 data/nature_reserves.geojson
