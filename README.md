@@ -110,6 +110,32 @@ Options:
 - `--layer-name` — layer name in MBTiles (default: `nature_reserves`)
 - `--force` — overwrite existing file
 
+## Production
+
+### Deploy
+
+Make sure your changes are pushed to `origin/master`, then run:
+
+```bash
+./deploy.sh
+```
+
+This SSHes into the VPS, pulls the latest code, rebuilds the Docker images, restarts the containers, and runs migrations.
+
+### Run a management command
+
+To run a Django management command inside the production `api` container:
+
+```bash
+docker compose -f docker-compose.prod.yml exec api python manage.py <command>
+```
+
+For example, to import nature reserves:
+
+```bash
+docker compose -f docker-compose.prod.yml exec api python manage.py import_nature_reserves
+```
+
 ## Alternatives
 
 - [Protected Planet](https://www.protectedplanet.net) — global database of protected areas (IUCN/UNEP-WCMC)
