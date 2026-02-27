@@ -423,7 +423,8 @@ class Command(BaseCommand):
                         continue
 
                     self.stdout.write(
-                        f"\nProcessing tile {tile_idx}/{len(tiles)}: {tile_bbox}"
+                        f"\nProcessing tile {tile_idx}/{len(tiles)}"
+                        f" ({tile_idx / len(tiles) * 100:.1f}%): {tile_bbox}"
                     )
                     try:
                         tile_reserves = extractor.extract(
