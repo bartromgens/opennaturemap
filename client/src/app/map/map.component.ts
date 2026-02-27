@@ -13,7 +13,6 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import * as L from 'leaflet';
-import 'leaflet.vectorgrid';
 
 import type { NatureReserveDetail, NatureReserveListItem, ReserveGeometry } from './reserve-detail';
 import { PROTECTION_LEVEL_OPTIONS, protectionLevelFromProtectClass } from './protection-class';
@@ -248,8 +247,9 @@ export class MapComponent implements AfterViewInit, OnDestroy {
       const show = operatorMatch && protectionMatch;
       return show ? RESERVE_LAYER_STYLE : [];
     };
+    const windowL = (window as unknown as { L: typeof L }).L;
     const layer = (
-      L as unknown as { vectorGrid: { protobuf: (url: string, opts: object) => L.Layer } }
+      windowL as unknown as { vectorGrid: { protobuf: (url: string, opts: object) => L.Layer } }
     ).vectorGrid.protobuf(VECTOR_TILE_URL, {
       vectorTileLayerStyles: {
         nature_reserves: styleFn,
