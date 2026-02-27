@@ -1,0 +1,20 @@
+# Production settings override.
+# Copy this file to settings_local.py on the VPS and fill in the values.
+# settings_local.py is gitignored and will not be committed.
+
+SECRET_KEY = "change-me-to-a-long-random-string"
+
+DEBUG = False
+
+ALLOWED_HOSTS = ["opennaturemaps.org"]
+
+# PostgreSQL -- matches the db service in docker-compose.prod.yml
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": "opennaturemap",
+        "USER": "opennaturemap",
+        "HOST": "db",
+        "PORT": "5432",
+    }
+}

@@ -1,0 +1,47 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: opennaturemap
+      POSTGRES_USER: opennaturemap
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opennaturemap -d opennaturemap"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8025:8000"
+    volumes:
+      - ./config/settings_local.py:/app/config/settings_local.py:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  tileserver:
+    image: maptiler/tileserver-gl:latest
+    ports:
+      - "127.0.0.1:8105:8080"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:3025:80"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

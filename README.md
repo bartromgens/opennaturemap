@@ -59,7 +59,7 @@ API: http://127.0.0.1:8000/
 To serve map tiles, put MBTiles in `data/` and run tileserver-gl:
 
 ```bash
-docker compose up -d
+docker compose up
 ```
 
 Tiles: http://localhost:8080/

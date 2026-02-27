@@ -19,11 +19,12 @@ import type { NatureReserveDetail, NatureReserveListItem, ReserveGeometry } from
 import { PROTECTION_LEVEL_OPTIONS, protectionLevelFromProtectClass } from './protection-class';
 import { ReservePickerComponent } from './reserve-picker/reserve-picker.component';
 import { ReserveSidebarComponent } from './reserve-sidebar/reserve-sidebar.component';
+import { environment } from '../../environments/environment';
 
 const DEFAULT_CENTER: L.LatLngTuple = [52.0907, 5.1214];
 const DEFAULT_ZOOM = 11;
 const API_BASE = '/api';
-const VECTOR_TILE_URL = 'http://localhost:8080/data/nature_reserves/{z}/{x}/{y}.pbf';
+const VECTOR_TILE_URL = environment.vectorTileUrl;
 
 const RESERVE_LAYER_STYLE: L.PathOptions = {
   fill: true,

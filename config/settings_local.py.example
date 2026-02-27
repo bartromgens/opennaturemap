@@ -1,17 +1,9 @@
-# Local settings override
-# Copy this file to settings_local.py and customize for your local environment
-# settings_local.py is gitignored and will not be committed
+# Development settings override.
+# Copy this file to settings_local.py and adjust as needed.
+# settings_local.py is gitignored and will not be committed.
 
-SECRET_KEY = 'your-secret-key-here'
+SECRET_KEY = "django-insecure-local-dev-key"
 
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
-
-# Database configuration (if you want to override the default SQLite)
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
+ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
