@@ -8,8 +8,10 @@ from django.utils import timezone
 
 from api.extractors import OSMNatureReserveExtractor
 from api.geometry_utils import bbox_from_osm_geometry, reserve_geojson_features
+from api.land_filter import LandFilter
 from api.models import ImportGrid, NatureReserve, Operator
 
+WORLD_BBOX: Tuple[float, float, float, float] = (-180, -85, 180, 85)
 NETHERLANDS_BBOX: Tuple[float, float, float, float] = (3.2, 50.75, 7.2, 53.7)
 SPAIN_BBOX: Tuple[float, float, float, float] = (-9.3, 36.0, 4.3, 43.8)
 FRANCE_BBOX: Tuple[float, float, float, float] = (-5.5, 41.3, 9.6, 51.1)
@@ -58,13 +60,15 @@ class Command(BaseCommand):
     ) -> List[Tuple[float, float, float, float]]:
         min_lon, min_lat, max_lon, max_lat = bbox
         center_lat = (min_lat + max_lat) / 2.0
-        lon_degrees, lat_degrees = self.calculate_tile_size_degrees(
-            center_lat, tile_size_km
-        )
+        _, lat_degrees = self.calculate_tile_size_degrees(center_lat, tile_size_km)
         tiles = []
         current_lat = min_lat
         while current_lat < max_lat:
             tile_max_lat = min(current_lat + lat_degrees, max_lat)
+            band_center_lat = (current_lat + tile_max_lat) / 2.0
+            lon_degrees, _ = self.calculate_tile_size_degrees(
+                band_center_lat, tile_size_km
+            )
             current_lon = min_lon
             while current_lon < max_lon:
                 tile_max_lon = min(current_lon + lon_degrees, max_lon)
@@ -165,6 +169,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--region",
             choices=[
+                "world",
                 "netherlands",
                 "spain",
                 "france",
@@ -242,7 +247,11 @@ class Command(BaseCommand):
         bbox_name = "Netherlands"
         area_iso = "NL"
 
-        if options["test_region"]:
+        if options["region"] == "world":
+            bbox = WORLD_BBOX
+            bbox_name = "World"
+            area_iso = None
+        elif options["test_region"]:
             bbox = test_region_bbox
             bbox_name = "test region (Utrecht, 52.11695/5.21434)"
             area_iso = None
@@ -363,13 +372,34 @@ class Command(BaseCommand):
                     f"Splitting area into {len(tiles)} tiles " f"(~{km}x{km} km each)"
                 )
 
+                use_land_filter = options["region"] == "world"
+                land_filter: LandFilter | None = None
+                if use_land_filter:
+                    self.stdout.write("Loading land filter (Natural Earth 110m)...")
+                    land_filter = LandFilter()
+                    self.stdout.write("Land filter loaded.")
+
                 total_created = 0
                 total_updated = 0
                 total_errors = 0
                 processed = 0
+                skipped_ocean = 0
 
                 for tile_idx, tile_bbox in enumerate(tiles, 1):
                     min_lon, min_lat, max_lon, max_lat = tile_bbox
+
+                    if (
+                        land_filter is not None
+                        and not land_filter.tile_intersects_land(
+                            min_lon, min_lat, max_lon, max_lat
+                        )
+                    ):
+                        self.stdout.write(
+                            f"Skipping non-land tile {tile_idx}/{len(tiles)}: {tile_bbox}"
+                        )
+                        skipped_ocean += 1
+                        continue
+
                     grid, _ = ImportGrid.objects.get_or_create(
                         min_lon=min_lon,
                         min_lat=min_lat,
@@ -448,6 +478,10 @@ class Command(BaseCommand):
 
                 self.stdout.write(self.style.SUCCESS("\nImport complete (gridded):"))
                 self.stdout.write(f"  Tiles processed: {processed}/{len(tiles)}")
+                if skipped_ocean:
+                    self.stdout.write(
+                        f"  Tiles skipped (ocean-only): {skipped_ocean}/{len(tiles)}"
+                    )
                 self.stdout.write(f"  Created: {total_created}")
                 self.stdout.write(f"  Updated: {total_updated}")
                 self.stdout.write(f"  Errors: {total_errors}")
