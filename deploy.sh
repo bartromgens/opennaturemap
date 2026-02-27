@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VPS_USER="your-user"
+VPS_USER="bart"
 VPS_HOST="opennaturemaps.org"
-VPS_PATH="/path/to/opennaturemap"
+VPS_PATH="/home/bart/opennaturemap"
 
 ssh "${VPS_USER}@${VPS_HOST}" bash <<EOF
   set -euo pipefail
