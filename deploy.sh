@@ -1,6 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+git fetch origin
+
+LOCAL_COMMIT=$(git rev-parse HEAD)
+REMOTE_COMMIT=$(git rev-parse origin/master)
+
+if [ "$LOCAL_COMMIT" != "$REMOTE_COMMIT" ]; then
+  echo "Error: Local commits not pushed to remote."
+  echo "  Local:  $LOCAL_COMMIT"
+  echo "  Remote: $REMOTE_COMMIT"
+  echo "Please push your changes before deploying."
+  exit 1
+fi
+
 VPS_USER="bart"
 VPS_HOST="opennaturemaps.org"
 VPS_PATH="/home/bart/opennaturemap"
