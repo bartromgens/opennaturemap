@@ -43,6 +43,30 @@ class Command(BaseCommand):
             action="store_true",
             help="Overwrite output file if it exists",
         )
+        parser.add_argument(
+            "--low-detail",
+            type=int,
+            default=10,
+            metavar="DETAIL",
+            help="Detail at lower zoom levels (default: 10, lower = smaller tiles).",
+        )
+        parser.add_argument(
+            "--simplification",
+            type=float,
+            default=10.0,
+            metavar="SCALE",
+            help="Simplification scale multiplier (default: 10.0 for faster low-zoom rendering).",
+        )
+        parser.add_argument(
+            "--no-coalesce",
+            action="store_true",
+            help="Use --drop-densest-as-needed instead of --coalesce-densest-as-needed.",
+        )
+        parser.add_argument(
+            "--no-drop-smallest",
+            action="store_true",
+            help="Don't use --drop-smallest-as-needed.",
+        )
 
     def handle(self, *args, **options):
         geojson_output = options["geojson_output"]
@@ -51,6 +75,10 @@ class Command(BaseCommand):
         max_zoom = options["max_zoom"]
         layer_name = options["layer_name"]
         force = options["force"]
+        low_detail = options["low_detail"]
+        simplification = options["simplification"]
+        coalesce = not options["no_coalesce"]
+        drop_smallest = not options["no_drop_smallest"]
 
         geojson_path = Path(geojson_output)
 
@@ -80,6 +108,10 @@ class Command(BaseCommand):
                 max_zoom=max_zoom,
                 layer_name=layer_name,
                 force=force,
+                low_detail=low_detail,
+                simplification=simplification,
+                coalesce=coalesce,
+                drop_smallest=drop_smallest,
             )
         except Exception as e:
             raise CommandError(f"Failed to convert to MBTiles: {e}")

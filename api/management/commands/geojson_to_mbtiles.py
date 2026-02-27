@@ -69,6 +69,23 @@ class Command(BaseCommand):
             metavar="DETAIL",
             help="Minimum detail to try when a tile exceeds size limit; lower = more reduction allowed (default: 7, tippecanoe default 7).",
         )
+        parser.add_argument(
+            "--simplification",
+            type=float,
+            default=1.0,
+            metavar="SCALE",
+            help="Simplification scale multiplier; higher = more aggressive simplification (default: 1.0).",
+        )
+        parser.add_argument(
+            "--coalesce",
+            action="store_true",
+            help="Use --coalesce-densest-as-needed instead of --drop-densest-as-needed (better for polygons).",
+        )
+        parser.add_argument(
+            "--drop-smallest",
+            action="store_true",
+            help="Also use --drop-smallest-as-needed to drop small features when tiles are too big.",
+        )
 
     def handle(self, *args, **options):
         input_path = options.get("input")
@@ -80,6 +97,9 @@ class Command(BaseCommand):
         maximum_tile_bytes = options["maximum_tile_bytes"]
         low_detail = options["low_detail"]
         minimum_detail = options["minimum_detail"]
+        simplification = options["simplification"]
+        coalesce = options["coalesce"]
+        drop_smallest = options["drop_smallest"]
 
         if output_path.exists() and not force:
             raise CommandError(
@@ -155,10 +175,25 @@ class Command(BaseCommand):
                 str(low_detail),
                 "--minimum-detail",
                 str(minimum_detail),
-                "--drop-densest-as-needed",
-                "--extend-zooms-if-still-dropping",
-                str(input_path),
             ]
+
+            if simplification != 1.0:
+                tippecanoe_cmd.extend(["--simplification", str(simplification)])
+
+            if coalesce:
+                tippecanoe_cmd.append("--coalesce-densest-as-needed")
+            else:
+                tippecanoe_cmd.append("--drop-densest-as-needed")
+
+            if drop_smallest:
+                tippecanoe_cmd.append("--drop-smallest-as-needed")
+
+            tippecanoe_cmd.extend(
+                [
+                    "--extend-zooms-if-still-dropping",
+                    str(input_path),
+                ]
+            )
 
             if force:
                 tippecanoe_cmd.insert(-1, "--force")
