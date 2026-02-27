@@ -8,6 +8,9 @@ DEBUG = False
 
 ALLOWED_HOSTS = ["opennaturemaps.org"]
 
+CSRF_TRUSTED_ORIGINS = ["https://opennaturemaps.org"]
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 # PostgreSQL -- matches the db service in docker-compose.prod.yml
 DATABASES = {
     "default": {
