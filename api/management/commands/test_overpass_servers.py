@@ -11,7 +11,10 @@ SIMPLE_QUERY = "[out:json][timeout:5];node(1);out;"
 SIMPLE_TIMEOUT = 15
 # Utrecht region (min_lon, min_lat, max_lon, max_lat) – province/city area
 UTRECHT_BBOX: tuple[float, float, float, float] = (4.85, 51.95, 5.55, 52.15)
+# Netherlands 100x100 km bbox centered on Utrecht (min_lon, min_lat, max_lon, max_lat)
+NETHERLANDS_BBOX: tuple[float, float, float, float] = (4.35, 51.65, 5.75, 52.55)
 NATURE_RESERVES_TIMEOUT = 120
+NETHERLANDS_TIMEOUT = 300
 
 
 @dataclass
@@ -215,6 +218,17 @@ class Command(BaseCommand):
         total_tests += len(servers)
         total_ok += sum(1 for r in results_utrecht if r.ok)
 
+        netherlands_query = extractor.build_query(bbox=NETHERLANDS_BBOX)
+        results_netherlands = self._run_phase(
+            servers,
+            "\nNature reserves in Netherlands (full bbox)...\n",
+            netherlands_query,
+            NETHERLANDS_TIMEOUT,
+            verbose=verbose,
+        )
+        total_tests += len(servers)
+        total_ok += sum(1 for r in results_netherlands if r.ok)
+
         self.stdout.write("\n" + "=" * 70)
         self.stdout.write("SUMMARY")
         self.stdout.write("=" * 70)
@@ -225,7 +239,13 @@ class Command(BaseCommand):
         self._print_summary(
             results_utrecht, servers, "Nature reserves (Utrecht bbox)", verbose=verbose
         )
+        self._print_summary(
+            results_netherlands,
+            servers,
+            "Nature reserves (Netherlands bbox)",
+            verbose=verbose,
+        )
 
         failed = total_tests - total_ok
         if failed:
-            raise CommandError(f"{failed} test(s) failed across both phases")
+            raise CommandError(f"{failed} test(s) failed across all phases")
