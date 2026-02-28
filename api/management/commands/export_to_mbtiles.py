@@ -1,7 +1,11 @@
 from pathlib import Path
-from django.core.management.base import BaseCommand, CommandError
-from django.core.management import call_command
+from typing import Optional, Tuple
+
 from django.conf import settings
+from django.core.management import call_command
+from django.core.management.base import BaseCommand, CommandError
+
+from api.management.commands.export_geojson import REGION_BBOXES, parse_bbox
 
 
 class Command(BaseCommand):
@@ -29,8 +33,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--max-zoom",
             type=int,
-            default=14,
-            help="Maximum zoom level (default: 14)",
+            default=getattr(settings, "VECTOR_TILE_MAX_ZOOM", 13),
+            help=f"Maximum zoom level (default: {getattr(settings, 'VECTOR_TILE_MAX_ZOOM', 13)})",
         )
         parser.add_argument(
             "--layer-name",
@@ -67,6 +71,16 @@ class Command(BaseCommand):
             action="store_true",
             help="Don't use --drop-smallest-as-needed.",
         )
+        regions = ", ".join(REGION_BBOXES.keys())
+        parser.add_argument(
+            "--bbox",
+            type=str,
+            default=None,
+            help=(
+                f"Bounding box filter. Either a region name ({regions}) "
+                "or coordinates as min_lon,min_lat,max_lon,max_lat"
+            ),
+        )
 
     def handle(self, *args, **options):
         geojson_output = options["geojson_output"]
@@ -77,8 +91,19 @@ class Command(BaseCommand):
         force = options["force"]
         low_detail = options["low_detail"]
         simplification = options["simplification"]
-        coalesce = not options["no_coalesce"]
-        drop_smallest = not options["no_drop_smallest"]
+        no_coalesce = options["no_coalesce"]
+        no_drop_smallest = options["no_drop_smallest"]
+        bbox_str = options.get("bbox")
+
+        bbox: Optional[Tuple[float, float, float, float]] = None
+        if bbox_str:
+            bbox = parse_bbox(bbox_str)
+            if bbox is None:
+                raise CommandError(
+                    f"Invalid bbox: {bbox_str}. Use a region name or "
+                    "min_lon,min_lat,max_lon,max_lat"
+                )
+            self.stdout.write(f"Using bounding box: {bbox}")
 
         geojson_path = Path(geojson_output)
 
@@ -87,7 +112,10 @@ class Command(BaseCommand):
         self.stdout.write("=" * 60)
 
         try:
-            call_command("export_geojson", output=str(geojson_path))
+            export_kwargs = {"output": str(geojson_path)}
+            if bbox_str:
+                export_kwargs["bbox"] = bbox_str
+            call_command("export_geojson", **export_kwargs)
         except Exception as e:
             raise CommandError(f"Failed to export GeoJSON: {e}")
 
@@ -100,19 +128,21 @@ class Command(BaseCommand):
         self.stdout.write("=" * 60)
 
         try:
-            call_command(
-                "geojson_to_mbtiles",
-                input=str(geojson_path),
-                output=mbtiles_output,
-                min_zoom=min_zoom,
-                max_zoom=max_zoom,
-                layer_name=layer_name,
-                force=force,
-                low_detail=low_detail,
-                simplification=simplification,
-                coalesce=coalesce,
-                drop_smallest=drop_smallest,
-            )
+            mbtiles_kwargs = {
+                "input": str(geojson_path),
+                "output": mbtiles_output,
+                "min_zoom": min_zoom,
+                "max_zoom": max_zoom,
+                "layer_name": layer_name,
+                "force": force,
+                "low_detail": low_detail,
+                "simplification": simplification,
+                "no_coalesce": no_coalesce,
+                "no_drop_smallest": no_drop_smallest,
+            }
+            if bbox_str:
+                mbtiles_kwargs["bbox"] = bbox_str
+            call_command("geojson_to_mbtiles", **mbtiles_kwargs)
         except Exception as e:
             raise CommandError(f"Failed to convert to MBTiles: {e}")
 

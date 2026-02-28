@@ -6,6 +6,17 @@ It uses OpenStreetMap data (via Overpass), a Django REST API, and an Angular fro
 
 ## Setup
 
+### Tippecanoe
+
+[Tippecanoe](https://github.com/felt/tippecanoe) is required to generate MBTiles from GeoJSON. Tested with v2.80.0.
+
+```bash
+git clone https://github.com/felt/tippecanoe.git
+cd tippecanoe
+make -j
+sudo make install
+```
+
 ### Backend (Django)
 
 1. Create and activate the virtualenv (project root):
@@ -139,3 +150,4 @@ docker compose -f docker-compose.prod.yml exec api python manage.py import_natur
 ## Alternatives
 
 - [Protected Planet](https://www.protectedplanet.net) — global database of protected areas (IUCN/UNEP-WCMC)
+  - See the Download button at https://www.protectedplanet.net/en/search-areas?geo_type=site

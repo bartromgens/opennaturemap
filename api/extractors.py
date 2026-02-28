@@ -192,24 +192,20 @@ out geom;"""
                         self.server_manager.record_failure(server_url)
                         continue
                     elif response.status_code == 429:
-                        wait_time = self._get_retry_after(
-                            response, default=60 * (attempt + 1)
-                        )
                         output_callback(
-                            f"Rate limited (429), waiting {wait_time:.1f} seconds..."
+                            f"Rate limited (429) from {server_url}, waiting 10 seconds before trying next server..."
                         )
-                        time.sleep(wait_time)
-                        # Don't count rate limiting as a failure (it's temporary)
+                        time.sleep(10)
+                        # Record failure so we try other servers first
+                        self.server_manager.record_failure(server_url)
                         continue
                     elif response.status_code == 503:
-                        wait_time = self._get_retry_after(
-                            response, default=30 * (attempt + 1)
-                        )
                         output_callback(
-                            f"Service unavailable (503), waiting {wait_time:.1f} seconds..."
+                            f"Service unavailable (503) from {server_url}, waiting 10 seconds before trying next server..."
                         )
-                        time.sleep(wait_time)
-                        # Don't count service unavailable as a failure (it's temporary)
+                        time.sleep(10)
+                        # Record failure so we try other servers first
+                        self.server_manager.record_failure(server_url)
                         continue
                     else:
                         error_msg = (

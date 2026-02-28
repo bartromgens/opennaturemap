@@ -1,13 +1,14 @@
 import logging
 
+from django.conf import settings
 from django.db.models import Count
 from rest_framework import viewsets, filters
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 
 from .geometry_utils import (
-    geometry_from_osm_element,
+    geometry_from_reserve,
     geojson_geometry_area,
     point_in_geojson_geometry,
 )
@@ -21,6 +22,15 @@ from .serializers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@api_view(["GET"])
+def config_view(request):
+    return Response(
+        {
+            "vector_tile_max_zoom": getattr(settings, "VECTOR_TILE_MAX_ZOOM", 13),
+        }
+    )
 
 
 class OperatorViewSet(viewsets.ReadOnlyModelViewSet):
@@ -104,7 +114,7 @@ class NatureReserveViewSet(viewsets.ReadOnlyModelViewSet):
                 status=400,
             )
         logger.info("at_point request lat=%.6f lon=%.6f", lat, lon)
-        at_point_fields = ["id", "name", "area_type", "osm_data"]
+        at_point_fields = ["id", "name", "area_type", "osm_data", "geojson"]
         qs = NatureReserve.objects.filter(
             min_lat__isnull=False,
             max_lat__isnull=False,
@@ -126,7 +136,7 @@ class NatureReserveViewSet(viewsets.ReadOnlyModelViewSet):
         no_geom = 0
         geom_not_containing = 0
         for reserve in reserves_bbox:
-            geom = geometry_from_osm_element(reserve.osm_data)
+            geom = geometry_from_reserve(reserve)
             if geom is None:
                 no_geom += 1
                 logger.debug(

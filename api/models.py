@@ -56,14 +56,21 @@ class ImportGrid(models.Model):
 
 
 class NatureReserve(models.Model):
+    SOURCE_OSM = "osm"
+    SOURCE_WDPA = "wdpa"
+    SOURCE_CHOICES = [(SOURCE_OSM, "OpenStreetMap"), (SOURCE_WDPA, "Protected Planet")]
+
     id = models.CharField(max_length=255, primary_key=True)
     name = models.CharField(max_length=255, null=True, blank=True)
+    source = models.CharField(
+        max_length=20, choices=SOURCE_CHOICES, default=SOURCE_OSM, db_index=True
+    )
     operators = models.ManyToManyField(
         Operator,
         related_name="nature_reserves",
         blank=True,
     )
-    osm_data = models.JSONField()
+    osm_data = models.JSONField(null=True, blank=True)
     geojson = models.JSONField(null=True, blank=True)
     tags = models.JSONField(default=dict)
     area_type = models.CharField(max_length=100)

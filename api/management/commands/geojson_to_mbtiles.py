@@ -1,11 +1,14 @@
-import json
 import subprocess
 from pathlib import Path
+from typing import Optional, Tuple
+
+import ijson
 
 from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 
+from api.management.commands.export_geojson import REGION_BBOXES, parse_bbox
 from api.management.utils import find_executable
 
 
@@ -34,8 +37,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--max-zoom",
             type=int,
-            default=14,
-            help="Maximum zoom level (default: 14)",
+            default=getattr(settings, "VECTOR_TILE_MAX_ZOOM", 13),
+            help=f"Maximum zoom level (default: {getattr(settings, 'VECTOR_TILE_MAX_ZOOM', 13)})",
         )
         parser.add_argument(
             "--layer-name",
@@ -77,14 +80,31 @@ class Command(BaseCommand):
             help="Simplification scale multiplier; higher = more aggressive simplification (default: 1.0).",
         )
         parser.add_argument(
-            "--coalesce",
+            "--no-coalesce",
             action="store_true",
-            help="Use --coalesce-densest-as-needed instead of --drop-densest-as-needed (better for polygons).",
+            help="Use --drop-densest-as-needed instead of --coalesce-densest-as-needed.",
         )
         parser.add_argument(
-            "--drop-smallest",
+            "--no-drop-smallest",
             action="store_true",
-            help="Also use --drop-smallest-as-needed to drop small features when tiles are too big.",
+            help="Don't use --drop-smallest-as-needed.",
+        )
+        regions = ", ".join(REGION_BBOXES.keys())
+        parser.add_argument(
+            "--bbox",
+            type=str,
+            default=None,
+            help=(
+                f"Clip output to bounding box. Either a region name ({regions}) "
+                "or coordinates as min_lon,min_lat,max_lon,max_lat"
+            ),
+        )
+        parser.add_argument(
+            "--tippecanoe",
+            type=str,
+            default=None,
+            metavar="PATH",
+            help="Path to tippecanoe executable (default: auto-detect from PATH)",
         )
 
     def handle(self, *args, **options):
@@ -98,8 +118,19 @@ class Command(BaseCommand):
         low_detail = options["low_detail"]
         minimum_detail = options["minimum_detail"]
         simplification = options["simplification"]
-        coalesce = options["coalesce"]
-        drop_smallest = options["drop_smallest"]
+        coalesce = not options["no_coalesce"]
+        drop_smallest = not options["no_drop_smallest"]
+        bbox_str = options.get("bbox")
+
+        bbox: Optional[Tuple[float, float, float, float]] = None
+        if bbox_str:
+            bbox = parse_bbox(bbox_str)
+            if bbox is None:
+                raise CommandError(
+                    f"Invalid bbox: {bbox_str}. Use a region name or "
+                    "min_lon,min_lat,max_lon,max_lat"
+                )
+            self.stdout.write(f"Clipping to bounding box: {bbox}")
 
         if output_path.exists() and not force:
             raise CommandError(
@@ -124,13 +155,14 @@ class Command(BaseCommand):
         if not input_path.exists():
             raise CommandError(f"Input file {input_path} does not exist")
 
-        self.stdout.write(f"Reading GeoJSON from {input_path}...")
+        self.stdout.write(f"Counting features in {input_path}...")
         try:
-            with open(input_path, "r", encoding="utf-8") as f:
-                geojson_data = json.load(f)
-                feature_count = len(geojson_data.get("features", []))
-                self.stdout.write(f"Found {feature_count} features in GeoJSON")
-        except json.JSONDecodeError as e:
+            feature_count = 0
+            with open(input_path, "rb") as f:
+                for _ in ijson.items(f, "features.item"):
+                    feature_count += 1
+            self.stdout.write(f"Found {feature_count} features in GeoJSON")
+        except ijson.JSONError as e:
             raise CommandError(f"Invalid GeoJSON file: {e}")
         except Exception as e:
             raise CommandError(f"Error reading GeoJSON file: {e}")
@@ -138,19 +170,27 @@ class Command(BaseCommand):
         if feature_count == 0:
             raise CommandError("GeoJSON file contains no features")
 
-        tippecanoe_path = find_executable(
-            "tippecanoe",
-            [
-                "/usr/local/bin/tippecanoe",
-                "/usr/bin/tippecanoe",
-                "/opt/homebrew/bin/tippecanoe",
-            ],
-            "tippecanoe is not installed or not in PATH.\n"
-            "Install it:\n"
-            "  Ubuntu/Debian: sudo apt-get install tippecanoe\n"
-            "  macOS: brew install tippecanoe\n"
-            "  Or build from source: https://github.com/felt/tippecanoe",
+        tippecanoe_option = options.get("tippecanoe") or getattr(
+            settings, "TIPPECANOE_PATH", None
         )
+        if tippecanoe_option:
+            tippecanoe_path = tippecanoe_option
+            if not Path(tippecanoe_path).exists():
+                raise CommandError(f"tippecanoe not found at: {tippecanoe_path}")
+        else:
+            tippecanoe_path = find_executable(
+                "tippecanoe",
+                [
+                    "/usr/local/bin/tippecanoe",
+                    "/usr/bin/tippecanoe",
+                    "/opt/homebrew/bin/tippecanoe",
+                ],
+                "tippecanoe is not installed or not in PATH.\n"
+                "Install it:\n"
+                "  Ubuntu/Debian: sudo apt-get install tippecanoe\n"
+                "  macOS: brew install tippecanoe\n"
+                "  Or build from source: https://github.com/felt/tippecanoe",
+            )
         self._log_tippecanoe_version(tippecanoe_path)
 
         self.stdout.write(f"Converting to MBTiles (zoom {min_zoom}-{max_zoom})...")
@@ -187,6 +227,12 @@ class Command(BaseCommand):
 
             if drop_smallest:
                 tippecanoe_cmd.append("--drop-smallest-as-needed")
+
+            if bbox:
+                min_lon, min_lat, max_lon, max_lat = bbox
+                tippecanoe_cmd.extend(
+                    ["--clip-bounding-box", f"{min_lon},{min_lat},{max_lon},{max_lat}"]
+                )
 
             tippecanoe_cmd.extend(
                 [
