@@ -149,6 +149,8 @@ class Command(BaseCommand):
                     )
 
                 for feature in features:
+                    if "id" in feature and not isinstance(feature["id"], (int, float)):
+                        feature = {k: v for k, v in feature.items() if k != "id"}
                     geom = feature.get("geometry")
                     area = (
                         geojson_geometry_area(geom) if isinstance(geom, dict) else 0.0

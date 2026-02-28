@@ -168,7 +168,6 @@ def reserve_geojson_features(
         result.append(
             {
                 "type": "Feature",
-                "id": reserve_id,
                 "geometry": feature.get("geometry"),
                 "properties": props,
             }

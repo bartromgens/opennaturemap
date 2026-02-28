@@ -33,8 +33,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--max-zoom",
             type=int,
-            default=14,
-            help="Maximum zoom level (default: 14)",
+            default=12,
+            help="Maximum zoom level (default: 12)",
         )
         parser.add_argument(
             "--layer-name",

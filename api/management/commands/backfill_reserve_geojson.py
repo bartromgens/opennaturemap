@@ -41,7 +41,7 @@ class Command(BaseCommand):
             self.stdout.write("Dry run: no changes written.")
         updated = 0
         no_geometry = 0
-        for reserve in reserves:
+        for i, reserve in enumerate(reserves.iterator(), start=1):
             operator_ids = list(reserve.operators.values_list("id", flat=True))
             geojson_list = reserve_geojson_features(
                 reserve.osm_data or {},
@@ -52,11 +52,12 @@ class Command(BaseCommand):
                 reserve.tags or {},
                 reserve.protect_class,
             )
+            pct = i * 100 // total
             if not geojson_list:
                 no_geometry += 1
                 self.stdout.write(
                     self.style.WARNING(
-                        f"  {reserve.id}: no geometry from osm_data, skipping"
+                        f"[{pct:3d}%] {reserve.id}: no geometry from osm_data, skipping"
                     )
                 )
                 continue
@@ -64,6 +65,7 @@ class Command(BaseCommand):
                 reserve.geojson = geojson_list
                 reserve.save(update_fields=["geojson"])
             updated += 1
+            self.stdout.write(f"[{pct:3d}%] {reserve.id}: updated")
         msg = f"Processed {updated} reserve(s)"
         if no_geometry:
             msg += f", {no_geometry} with no geometry (skipped)"
