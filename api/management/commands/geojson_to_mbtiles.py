@@ -1,5 +1,6 @@
 import subprocess
 from pathlib import Path
+from typing import Optional, Tuple
 
 import ijson
 
@@ -7,6 +8,7 @@ from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 
+from api.management.commands.export_geojson import REGION_BBOXES, parse_bbox
 from api.management.utils import find_executable
 
 
@@ -35,8 +37,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--max-zoom",
             type=int,
-            default=14,
-            help="Maximum zoom level (default: 14)",
+            default=12,
+            help="Maximum zoom level (default: 12)",
         )
         parser.add_argument(
             "--layer-name",
@@ -87,6 +89,16 @@ class Command(BaseCommand):
             action="store_true",
             help="Also use --drop-smallest-as-needed to drop small features when tiles are too big.",
         )
+        regions = ", ".join(REGION_BBOXES.keys())
+        parser.add_argument(
+            "--bbox",
+            type=str,
+            default=None,
+            help=(
+                f"Clip output to bounding box. Either a region name ({regions}) "
+                "or coordinates as min_lon,min_lat,max_lon,max_lat"
+            ),
+        )
 
     def handle(self, *args, **options):
         input_path = options.get("input")
@@ -101,6 +113,17 @@ class Command(BaseCommand):
         simplification = options["simplification"]
         coalesce = options["coalesce"]
         drop_smallest = options["drop_smallest"]
+        bbox_str = options.get("bbox")
+
+        bbox: Optional[Tuple[float, float, float, float]] = None
+        if bbox_str:
+            bbox = parse_bbox(bbox_str)
+            if bbox is None:
+                raise CommandError(
+                    f"Invalid bbox: {bbox_str}. Use a region name or "
+                    "min_lon,min_lat,max_lon,max_lat"
+                )
+            self.stdout.write(f"Clipping to bounding box: {bbox}")
 
         if output_path.exists() and not force:
             raise CommandError(
@@ -189,6 +212,12 @@ class Command(BaseCommand):
 
             if drop_smallest:
                 tippecanoe_cmd.append("--drop-smallest-as-needed")
+
+            if bbox:
+                min_lon, min_lat, max_lon, max_lat = bbox
+                tippecanoe_cmd.extend(
+                    ["--clip-bounding-box", f"{min_lat},{min_lon},{max_lat},{max_lon}"]
+                )
 
             tippecanoe_cmd.extend(
                 [
