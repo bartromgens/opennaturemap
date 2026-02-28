@@ -1,6 +1,7 @@
-import json
 import subprocess
 from pathlib import Path
+
+import ijson
 
 from django.conf import settings
 from django.core.management import call_command
@@ -124,13 +125,14 @@ class Command(BaseCommand):
         if not input_path.exists():
             raise CommandError(f"Input file {input_path} does not exist")
 
-        self.stdout.write(f"Reading GeoJSON from {input_path}...")
+        self.stdout.write(f"Counting features in {input_path}...")
         try:
-            with open(input_path, "r", encoding="utf-8") as f:
-                geojson_data = json.load(f)
-                feature_count = len(geojson_data.get("features", []))
-                self.stdout.write(f"Found {feature_count} features in GeoJSON")
-        except json.JSONDecodeError as e:
+            feature_count = 0
+            with open(input_path, "rb") as f:
+                for _ in ijson.items(f, "features.item"):
+                    feature_count += 1
+            self.stdout.write(f"Found {feature_count} features in GeoJSON")
+        except ijson.JSONError as e:
             raise CommandError(f"Invalid GeoJSON file: {e}")
         except Exception as e:
             raise CommandError(f"Error reading GeoJSON file: {e}")
