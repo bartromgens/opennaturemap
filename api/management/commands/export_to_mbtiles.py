@@ -91,8 +91,8 @@ class Command(BaseCommand):
         force = options["force"]
         low_detail = options["low_detail"]
         simplification = options["simplification"]
-        coalesce = not options["no_coalesce"]
-        drop_smallest = not options["no_drop_smallest"]
+        no_coalesce = options["no_coalesce"]
+        no_drop_smallest = options["no_drop_smallest"]
         bbox_str = options.get("bbox")
 
         bbox: Optional[Tuple[float, float, float, float]] = None
@@ -137,8 +137,8 @@ class Command(BaseCommand):
                 "force": force,
                 "low_detail": low_detail,
                 "simplification": simplification,
-                "coalesce": coalesce,
-                "drop_smallest": drop_smallest,
+                "no_coalesce": no_coalesce,
+                "no_drop_smallest": no_drop_smallest,
             }
             if bbox_str:
                 mbtiles_kwargs["bbox"] = bbox_str
