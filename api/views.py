@@ -1,7 +1,7 @@
 import logging
 
 from django.conf import settings
-from django.db.models import Count
+from django.db.models import Count, Q
 from rest_framework import viewsets, filters
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
@@ -22,6 +22,31 @@ from .serializers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+PROTECTION_LEVEL_CLASSES: dict[str, list[str]] = {
+    "strict": ["1a", "1b", "1"],
+    "national_park": ["2"],
+    "habitat_monument": ["3", "4"],
+    "landscape_sustainable": ["5", "6"],
+    "eu_international": ["97"],
+    "international_intercontinental": ["98"],
+    "resource": [str(n) for n in range(11, 20)],
+    "social_cultural": [str(n) for n in range(21, 30)],
+    "other": ["7", "99"],
+}
+
+
+def protection_level_q_filter(protection_level: str) -> Q:
+    classes = PROTECTION_LEVEL_CLASSES.get(protection_level)
+    if classes:
+        return Q(protect_class__in=classes)
+    if protection_level == "other":
+        known_classes = set()
+        for cls_list in PROTECTION_LEVEL_CLASSES.values():
+            known_classes.update(cls_list)
+        return Q(protect_class__isnull=True) | ~Q(protect_class__in=known_classes)
+    return Q()
 
 
 @api_view(["GET"])
@@ -113,8 +138,26 @@ class NatureReserveViewSet(viewsets.ReadOnlyModelViewSet):
                 {"error": "lat and lon must be numbers"},
                 status=400,
             )
-        logger.info("at_point request lat=%.6f lon=%.6f", lat, lon)
-        at_point_fields = ["id", "name", "area_type", "osm_data", "geojson"]
+        source = request.query_params.get("source")
+        operator_id = request.query_params.get("operator")
+        protection_level = request.query_params.get("protection_level")
+        logger.info(
+            "at_point request lat=%.6f lon=%.6f source=%s operator=%s protection_level=%s",
+            lat,
+            lon,
+            source,
+            operator_id,
+            protection_level,
+        )
+        at_point_fields = [
+            "id",
+            "name",
+            "area_type",
+            "osm_data",
+            "geojson",
+            "source",
+            "protect_class",
+        ]
         qs = NatureReserve.objects.filter(
             min_lat__isnull=False,
             max_lat__isnull=False,
@@ -124,7 +167,17 @@ class NatureReserveViewSet(viewsets.ReadOnlyModelViewSet):
             max_lat__gte=lat,
             min_lon__lte=lon,
             max_lon__gte=lon,
-        ).only(*at_point_fields)
+        )
+        if source:
+            qs = qs.filter(source=source)
+        if operator_id:
+            try:
+                qs = qs.filter(operators__id=int(operator_id))
+            except ValueError:
+                pass
+        if protection_level:
+            qs = qs.filter(protection_level_q_filter(protection_level))
+        qs = qs.only(*at_point_fields)
         reserves_bbox = list(qs)
         logger.info(
             "at_point bbox query: reserves_in_bbox=%d (ids=%s)",

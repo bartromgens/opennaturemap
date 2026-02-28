@@ -2,7 +2,7 @@ from unittest.mock import patch, MagicMock
 from django.test import TestCase
 from django.core.management import call_command
 from io import StringIO
-from api.models import NatureReserve
+from api.models import NatureReserve, Operator
 from api.geometry_utils import (
     bbox_from_osm_element,
     bbox_from_osm_geometry,
@@ -589,3 +589,126 @@ class AtPointTest(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), [])
+
+    def test_at_point_filters_by_source(self):
+        min_lon, min_lat, max_lon, max_lat = self.bbox
+        NatureReserve.objects.create(
+            id="osm_reserve",
+            name="OSM Reserve",
+            source="osm",
+            osm_data=self.osm_data_with_geometry,
+            tags={},
+            area_type="nature_reserve",
+            min_lon=min_lon,
+            min_lat=min_lat,
+            max_lon=max_lon,
+            max_lat=max_lat,
+        )
+        NatureReserve.objects.create(
+            id="wdpa_reserve",
+            name="WDPA Reserve",
+            source="wdpa",
+            osm_data=self.osm_data_with_geometry,
+            tags={},
+            area_type="nature_reserve",
+            min_lon=min_lon,
+            min_lat=min_lat,
+            max_lon=max_lon,
+            max_lat=max_lat,
+        )
+        response = self.client.get(
+            "/api/nature-reserves/at_point/",
+            {"lat": self.lat, "lon": self.lon, "source": "osm"},
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["id"], "osm_reserve")
+
+        response = self.client.get(
+            "/api/nature-reserves/at_point/",
+            {"lat": self.lat, "lon": self.lon, "source": "wdpa"},
+        )
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["id"], "wdpa_reserve")
+
+    def test_at_point_filters_by_operator(self):
+        min_lon, min_lat, max_lon, max_lat = self.bbox
+        op1 = Operator.objects.create(name="Operator 1")
+        op2 = Operator.objects.create(name="Operator 2")
+        reserve1 = NatureReserve.objects.create(
+            id="reserve_op1",
+            name="Reserve Op1",
+            osm_data=self.osm_data_with_geometry,
+            tags={},
+            area_type="nature_reserve",
+            min_lon=min_lon,
+            min_lat=min_lat,
+            max_lon=max_lon,
+            max_lat=max_lat,
+        )
+        reserve1.operators.add(op1)
+        reserve2 = NatureReserve.objects.create(
+            id="reserve_op2",
+            name="Reserve Op2",
+            osm_data=self.osm_data_with_geometry,
+            tags={},
+            area_type="nature_reserve",
+            min_lon=min_lon,
+            min_lat=min_lat,
+            max_lon=max_lon,
+            max_lat=max_lat,
+        )
+        reserve2.operators.add(op2)
+        response = self.client.get(
+            "/api/nature-reserves/at_point/",
+            {"lat": self.lat, "lon": self.lon, "operator": op1.id},
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["id"], "reserve_op1")
+
+    def test_at_point_filters_by_protection_level(self):
+        min_lon, min_lat, max_lon, max_lat = self.bbox
+        NatureReserve.objects.create(
+            id="strict_reserve",
+            name="Strict Reserve",
+            protect_class="1a",
+            osm_data=self.osm_data_with_geometry,
+            tags={},
+            area_type="nature_reserve",
+            min_lon=min_lon,
+            min_lat=min_lat,
+            max_lon=max_lon,
+            max_lat=max_lat,
+        )
+        NatureReserve.objects.create(
+            id="national_park_reserve",
+            name="National Park",
+            protect_class="2",
+            osm_data=self.osm_data_with_geometry,
+            tags={},
+            area_type="nature_reserve",
+            min_lon=min_lon,
+            min_lat=min_lat,
+            max_lon=max_lon,
+            max_lat=max_lat,
+        )
+        response = self.client.get(
+            "/api/nature-reserves/at_point/",
+            {"lat": self.lat, "lon": self.lon, "protection_level": "strict"},
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["id"], "strict_reserve")
+
+        response = self.client.get(
+            "/api/nature-reserves/at_point/",
+            {"lat": self.lat, "lon": self.lon, "protection_level": "national_park"},
+        )
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["id"], "national_park_reserve")

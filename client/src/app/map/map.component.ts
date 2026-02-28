@@ -339,7 +339,16 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     const lng = e.latlng.lng;
     this.atPointLoading = true;
     this.cdr.detectChanges();
-    const params = new HttpParams().set('lat', String(lat)).set('lon', String(lng));
+    let params = new HttpParams().set('lat', String(lat)).set('lon', String(lng));
+    if (this.selectedSource) {
+      params = params.set('source', this.selectedSource);
+    }
+    if (this.selectedOperatorId !== null) {
+      params = params.set('operator', String(this.selectedOperatorId));
+    }
+    if (this.selectedProtectionLevel) {
+      params = params.set('protection_level', this.selectedProtectionLevel);
+    }
     this.http
       .get<NatureReserveListItem[]>(`${API_BASE}/nature-reserves/at_point/`, { params })
       .subscribe({
