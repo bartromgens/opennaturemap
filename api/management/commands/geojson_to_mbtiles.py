@@ -231,7 +231,7 @@ class Command(BaseCommand):
             if bbox:
                 min_lon, min_lat, max_lon, max_lat = bbox
                 tippecanoe_cmd.extend(
-                    ["--clip-bounding-box", f"{min_lat},{min_lon},{max_lat},{max_lon}"]
+                    ["--clip-bounding-box", f"{min_lon},{min_lat},{max_lon},{max_lat}"]
                 )
 
             tippecanoe_cmd.extend(
