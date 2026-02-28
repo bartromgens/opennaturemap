@@ -309,7 +309,7 @@ class Command(BaseCommand):
             shp=io.BytesIO(shp_bytes),
             dbf=io.BytesIO(dbf_bytes),
             shx=io.BytesIO(shx_bytes),
-            encoding="latin-1",
+            encoding="utf-8",
         )
 
         fields = sf.fields[1:]  # skip deletion flag
