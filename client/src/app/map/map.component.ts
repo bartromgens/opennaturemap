@@ -107,7 +107,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   protected protectionLevelOptions = PROTECTION_LEVEL_OPTIONS;
   protected selectedProtectionLevel: string | null = null;
   protected selectedOperatorId: number | null = null;
-  protected selectedSource: string | null = null;
+  protected selectedSource: string | null = 'osm';
   protected selectedReserve: NatureReserveDetail | null = null;
   protected sidebarExpanded = false;
   protected loadError: string | null = null;
