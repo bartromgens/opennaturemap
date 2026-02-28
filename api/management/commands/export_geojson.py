@@ -128,7 +128,14 @@ class Command(BaseCommand):
         feature_count = 0
 
         reserves = queryset.only(
-            "id", "name", "area_type", "tags", "protect_class", "geojson", "osm_data"
+            "id",
+            "name",
+            "area_type",
+            "tags",
+            "protect_class",
+            "geojson",
+            "osm_data",
+            "source",
         ).iterator(chunk_size=BATCH_SIZE)
 
         batch = []
@@ -136,6 +143,9 @@ class Command(BaseCommand):
             try:
                 if reserve.geojson:
                     features = reserve.geojson
+                    for feat in features:
+                        if isinstance(feat, dict) and "properties" in feat:
+                            feat["properties"]["source"] = reserve.source
                 else:
                     operator_ids = list(reserve.operators.values_list("id", flat=True))
                     features = reserve_geojson_features(
@@ -146,6 +156,7 @@ class Command(BaseCommand):
                         operator_ids,
                         reserve.tags or {},
                         reserve.protect_class,
+                        reserve.source,
                     )
 
                 for feature in features:
@@ -167,7 +178,8 @@ class Command(BaseCommand):
 
                 processed_count += 1
                 if processed_count % 10000 == 0:
-                    msg = f"  Processed {processed_count}/{total_count} reserves..."
+                    pct = 100 * processed_count / total_count
+                    msg = f"  Processed {processed_count}/{total_count} reserves ({pct:.1f}%)..."
                     self.stdout.write(msg)
 
             except Exception as e:

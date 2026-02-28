@@ -33,8 +33,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--max-zoom",
             type=int,
-            default=12,
-            help="Maximum zoom level (default: 12)",
+            default=getattr(settings, "VECTOR_TILE_MAX_ZOOM", 13),
+            help=f"Maximum zoom level (default: {getattr(settings, 'VECTOR_TILE_MAX_ZOOM', 13)})",
         )
         parser.add_argument(
             "--layer-name",

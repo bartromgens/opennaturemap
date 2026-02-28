@@ -22,8 +22,13 @@ import { environment } from '../../environments/environment';
 
 const DEFAULT_CENTER: L.LatLngTuple = [52.0907, 5.1214];
 const DEFAULT_ZOOM = 11;
+const DEFAULT_MAX_NATIVE_ZOOM = 13;
 const API_BASE = '/api';
 const VECTOR_TILE_URL = environment.vectorTileUrl;
+
+interface AppConfig {
+  vector_tile_max_zoom: number;
+}
 
 const RESERVE_LAYER_STYLE: L.PathOptions = {
   fill: true,
@@ -96,11 +101,13 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   private vectorTileLayer: L.Layer | null = null;
   private highlightLayer: L.Layer | null = null;
   private searchInput$ = new Subject<string>();
+  private maxNativeZoom = DEFAULT_MAX_NATIVE_ZOOM;
 
   protected operators: OperatorOption[] = [];
   protected protectionLevelOptions = PROTECTION_LEVEL_OPTIONS;
   protected selectedProtectionLevel: string | null = null;
   protected selectedOperatorId: number | null = null;
+  protected selectedSource: string | null = null;
   protected selectedReserve: NatureReserveDetail | null = null;
   protected sidebarExpanded = false;
   protected loadError: string | null = null;
@@ -150,9 +157,11 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void {
+    this.loadConfig();
     this.loadOperators();
     this.applyProtectionLevelFromUrl();
     this.applyOperatorFromUrl();
+    this.applySourceFromUrl();
     this.initMap();
     this.applyReserveFromUrl();
   }
@@ -173,6 +182,12 @@ export class MapComponent implements AfterViewInit, OnDestroy {
 
   protected onOperatorFilterChange(value: number | null): void {
     this.selectedOperatorId = value;
+    this.updateVectorTileLayer();
+    this.updateUrlFromMap();
+  }
+
+  protected onSourceFilterChange(value: string | null): void {
+    this.selectedSource = value;
     this.updateVectorTileLayer();
     this.updateUrlFromMap();
   }
@@ -204,6 +219,15 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     this.pickerPosition = null;
   }
 
+  private loadConfig(): void {
+    this.http.get<AppConfig>(`${API_BASE}/config/`).subscribe({
+      next: (config) => {
+        this.maxNativeZoom = config.vector_tile_max_zoom ?? DEFAULT_MAX_NATIVE_ZOOM;
+        this.updateVectorTileLayer();
+      },
+    });
+  }
+
   private loadOperators(): void {
     this.http
       .get<OperatorOption[] | { results: OperatorOption[] }>(`${API_BASE}/operators/`)
@@ -226,6 +250,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     if (!this.map) return;
     const selectedOperatorId = this.selectedOperatorId;
     const selectedProtectionLevel = this.selectedProtectionLevel;
+    const selectedSource = this.selectedSource;
     const styleFn = (
       properties: Record<string, unknown>,
       _zoom: number,
@@ -244,7 +269,9 @@ export class MapComponent implements AfterViewInit, OnDestroy {
             : null;
       const level = protectionLevelFromProtectClass(pc);
       const protectionMatch = selectedProtectionLevel === null || level === selectedProtectionLevel;
-      const show = operatorMatch && protectionMatch;
+      const featureSource = properties?.['source'];
+      const sourceMatch = selectedSource === null || featureSource === selectedSource;
+      const show = operatorMatch && protectionMatch && sourceMatch;
       return show ? RESERVE_LAYER_STYLE : [];
     };
     const windowL = (window as unknown as { L: typeof L }).L;
@@ -255,6 +282,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
         nature_reserves: styleFn,
       },
       interactive: true,
+      maxNativeZoom: this.maxNativeZoom,
       getFeatureId: (f: { properties: { id?: string; osm_id?: string } }) =>
         f.properties.id ?? String(f.properties.osm_id ?? ''),
     });
@@ -376,6 +404,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     } else {
       queryParams['operator'] = null;
     }
+    queryParams['source'] = this.selectedSource;
     this.router.navigate([], {
       relativeTo: this.route,
       queryParams: queryParams as Record<string, string | number>,
@@ -432,6 +461,13 @@ export class MapComponent implements AfterViewInit, OnDestroy {
       if (!Number.isNaN(id) && Number.isInteger(id)) {
         this.selectedOperatorId = id;
       }
+    }
+  }
+
+  private applySourceFromUrl(): void {
+    const raw = this.route.snapshot.queryParamMap.get('source');
+    if (raw === 'osm' || raw === 'wdpa') {
+      this.selectedSource = raw;
     }
   }
 
@@ -504,6 +540,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
         lng: center.lng.toFixed(5),
         zoom,
         protection_level: this.selectedProtectionLevel,
+        source: this.selectedSource,
       };
       if (this.selectedOperatorId != null) {
         queryParams['operator'] = this.selectedOperatorId;

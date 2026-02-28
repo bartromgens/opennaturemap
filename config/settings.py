@@ -95,6 +95,8 @@ REST_FRAMEWORK = {
     ],
 }
 
+VECTOR_TILE_MAX_ZOOM = 13
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

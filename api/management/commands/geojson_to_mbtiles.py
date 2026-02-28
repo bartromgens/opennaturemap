@@ -37,8 +37,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--max-zoom",
             type=int,
-            default=12,
-            help="Maximum zoom level (default: 12)",
+            default=getattr(settings, "VECTOR_TILE_MAX_ZOOM", 13),
+            help=f"Maximum zoom level (default: {getattr(settings, 'VECTOR_TILE_MAX_ZOOM', 13)})",
         )
         parser.add_argument(
             "--layer-name",
@@ -80,14 +80,14 @@ class Command(BaseCommand):
             help="Simplification scale multiplier; higher = more aggressive simplification (default: 1.0).",
         )
         parser.add_argument(
-            "--coalesce",
+            "--no-coalesce",
             action="store_true",
-            help="Use --coalesce-densest-as-needed instead of --drop-densest-as-needed (better for polygons).",
+            help="Use --drop-densest-as-needed instead of --coalesce-densest-as-needed.",
         )
         parser.add_argument(
-            "--drop-smallest",
+            "--no-drop-smallest",
             action="store_true",
-            help="Also use --drop-smallest-as-needed to drop small features when tiles are too big.",
+            help="Don't use --drop-smallest-as-needed.",
         )
         regions = ", ".join(REGION_BBOXES.keys())
         parser.add_argument(
@@ -118,8 +118,8 @@ class Command(BaseCommand):
         low_detail = options["low_detail"]
         minimum_detail = options["minimum_detail"]
         simplification = options["simplification"]
-        coalesce = options["coalesce"]
-        drop_smallest = options["drop_smallest"]
+        coalesce = not options["no_coalesce"]
+        drop_smallest = not options["no_drop_smallest"]
         bbox_str = options.get("bbox")
 
         bbox: Optional[Tuple[float, float, float, float]] = None

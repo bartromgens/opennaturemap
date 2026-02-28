@@ -147,6 +147,7 @@ def reserve_geojson_features(
     operator_ids: list[int],
     tags: dict,
     protect_class: str | None,
+    source: str | None = None,
 ) -> list[dict]:
     """Build GeoJSON Feature dicts for a reserve (same structure as export). Returns [] if no geometry."""
     raw_features = osm_element_to_geojson_features(osm_data or {})
@@ -165,6 +166,8 @@ def reserve_geojson_features(
         props["operator_ids"] = ",".join(str(i) for i in operator_ids)
         if protect_class:
             props["protect_class"] = protect_class
+        if source:
+            props["source"] = source
         result.append(
             {
                 "type": "Feature",

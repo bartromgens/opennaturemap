@@ -63,6 +63,18 @@
         }
       </mat-select>
     </mat-form-field>
+    <mat-form-field
+      appearance="outline"
+      subscriptSizing="dynamic"
+      class="toolbar-field source-filter"
+    >
+      <mat-label>Source</mat-label>
+      <mat-select [value]="selectedSource" (selectionChange)="onSourceFilterChange($event.value)">
+        <mat-option [value]="null">All sources</mat-option>
+        <mat-option value="osm">OpenStreetMap</mat-option>
+        <mat-option value="wdpa">Protected Planet</mat-option>
+      </mat-select>
+    </mat-form-field>
   </mat-toolbar>
   <div class="map-area">
     <div id="map"></div>

@@ -104,6 +104,7 @@ class Command(BaseCommand):
                 operator_ids,
                 reserve.tags or {},
                 reserve.protect_class,
+                reserve.source,
             )
 
             if not geojson_list:

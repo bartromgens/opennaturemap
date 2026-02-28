@@ -1,8 +1,9 @@
 import logging
 
+from django.conf import settings
 from django.db.models import Count
 from rest_framework import viewsets, filters
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 
@@ -21,6 +22,15 @@ from .serializers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@api_view(["GET"])
+def config_view(request):
+    return Response(
+        {
+            "vector_tile_max_zoom": getattr(settings, "VECTOR_TILE_MAX_ZOOM", 13),
+        }
+    )
 
 
 class OperatorViewSet(viewsets.ReadOnlyModelViewSet):
