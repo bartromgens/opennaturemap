@@ -45,6 +45,24 @@ def operators_display(obj: NatureReserve) -> str:
 operators_display.short_description = "Operators"
 
 
+class HasGeometryFilter(admin.SimpleListFilter):
+    title = "has geometry"
+    parameter_name = "has_geometry"
+
+    def lookups(self, request, model_admin):
+        return [
+            ("yes", "Yes"),
+            ("no", "No"),
+        ]
+
+    def queryset(self, request, queryset):
+        if self.value() == "yes":
+            return queryset.exclude(geojson__isnull=True)
+        if self.value() == "no":
+            return queryset.filter(geojson__isnull=True)
+        return queryset
+
+
 @admin.register(NatureReserve)
 class NatureReserveAdmin(admin.ModelAdmin):
     list_display = [
@@ -60,7 +78,13 @@ class NatureReserveAdmin(admin.ModelAdmin):
         "created_at",
         "updated_at",
     ]
-    list_filter = ["area_type", "protect_class", "operators", "created_at"]
+    list_filter = [
+        "area_type",
+        "protect_class",
+        "source",
+        HasGeometryFilter,
+        "created_at",
+    ]
     search_fields = ["id", "name"]
     readonly_fields = ["created_at", "updated_at", "osm_data", "tags"]
     filter_horizontal = ["operators"]
