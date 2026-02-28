@@ -7,3 +7,5 @@ SECRET_KEY = "django-insecure-local-dev-key"
 DEBUG = True
 
 ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+
+# TIPPECANOE_PATH = '/path/to/tippecanoe'

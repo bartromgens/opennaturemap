@@ -99,6 +99,13 @@ class Command(BaseCommand):
                 "or coordinates as min_lon,min_lat,max_lon,max_lat"
             ),
         )
+        parser.add_argument(
+            "--tippecanoe",
+            type=str,
+            default=None,
+            metavar="PATH",
+            help="Path to tippecanoe executable (default: auto-detect from PATH)",
+        )
 
     def handle(self, *args, **options):
         input_path = options.get("input")
@@ -163,19 +170,27 @@ class Command(BaseCommand):
         if feature_count == 0:
             raise CommandError("GeoJSON file contains no features")
 
-        tippecanoe_path = find_executable(
-            "tippecanoe",
-            [
-                "/usr/local/bin/tippecanoe",
-                "/usr/bin/tippecanoe",
-                "/opt/homebrew/bin/tippecanoe",
-            ],
-            "tippecanoe is not installed or not in PATH.\n"
-            "Install it:\n"
-            "  Ubuntu/Debian: sudo apt-get install tippecanoe\n"
-            "  macOS: brew install tippecanoe\n"
-            "  Or build from source: https://github.com/felt/tippecanoe",
+        tippecanoe_option = options.get("tippecanoe") or getattr(
+            settings, "TIPPECANOE_PATH", None
         )
+        if tippecanoe_option:
+            tippecanoe_path = tippecanoe_option
+            if not Path(tippecanoe_path).exists():
+                raise CommandError(f"tippecanoe not found at: {tippecanoe_path}")
+        else:
+            tippecanoe_path = find_executable(
+                "tippecanoe",
+                [
+                    "/usr/local/bin/tippecanoe",
+                    "/usr/bin/tippecanoe",
+                    "/opt/homebrew/bin/tippecanoe",
+                ],
+                "tippecanoe is not installed or not in PATH.\n"
+                "Install it:\n"
+                "  Ubuntu/Debian: sudo apt-get install tippecanoe\n"
+                "  macOS: brew install tippecanoe\n"
+                "  Or build from source: https://github.com/felt/tippecanoe",
+            )
         self._log_tippecanoe_version(tippecanoe_path)
 
         self.stdout.write(f"Converting to MBTiles (zoom {min_zoom}-{max_zoom})...")
