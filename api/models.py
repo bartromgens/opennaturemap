@@ -61,7 +61,7 @@ class NatureReserve(models.Model):
     SOURCE_CHOICES = [(SOURCE_OSM, "OpenStreetMap"), (SOURCE_WDPA, "Protected Planet")]
 
     id = models.CharField(max_length=255, primary_key=True)
-    name = models.CharField(max_length=255, null=True, blank=True)
+    name = models.CharField(max_length=255, null=True, blank=True, db_index=True)
     source = models.CharField(
         max_length=20, choices=SOURCE_CHOICES, default=SOURCE_OSM, db_index=True
     )
@@ -73,8 +73,8 @@ class NatureReserve(models.Model):
     osm_data = models.JSONField(null=True, blank=True)
     geojson = models.JSONField(null=True, blank=True)
     tags = models.JSONField(default=dict)
-    area_type = models.CharField(max_length=100)
-    protect_class = models.CharField(max_length=100, null=True, blank=True)
+    area_type = models.CharField(max_length=100, db_index=True)
+    protect_class = models.CharField(max_length=100, null=True, blank=True, db_index=True)
     min_lat = models.FloatField(db_index=True)
     max_lat = models.FloatField(db_index=True)
     min_lon = models.FloatField(db_index=True)
@@ -84,10 +84,6 @@ class NatureReserve(models.Model):
 
     class Meta:
         db_table = "nature_reserves"
-        indexes = [
-            models.Index(fields=["area_type"]),
-            models.Index(fields=["name"]),
-        ]
 
     def __str__(self) -> str:
         return self.name or self.id
