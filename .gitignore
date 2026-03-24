@@ -119,4 +119,5 @@ dist/
 
 # Project specific
 *.geojson
+data
 data/
