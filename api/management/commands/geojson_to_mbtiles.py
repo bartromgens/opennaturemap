@@ -122,6 +122,29 @@ class Command(BaseCommand):
         drop_smallest = not options["no_drop_smallest"]
         bbox_str = options.get("bbox")
 
+        tippecanoe_option = options.get("tippecanoe") or getattr(
+            settings, "TIPPECANOE_PATH", None
+        )
+        if tippecanoe_option:
+            tippecanoe_path = tippecanoe_option
+            if not Path(tippecanoe_path).exists():
+                raise CommandError(f"tippecanoe not found at: {tippecanoe_path}")
+        else:
+            tippecanoe_path = find_executable(
+                "tippecanoe",
+                [
+                    "/usr/local/bin/tippecanoe",
+                    "/usr/bin/tippecanoe",
+                    "/opt/homebrew/bin/tippecanoe",
+                ],
+                "tippecanoe is not installed or not in PATH.\n"
+                "Install it:\n"
+                "  Ubuntu/Debian: sudo apt-get install tippecanoe\n"
+                "  macOS: brew install tippecanoe\n"
+                "  Or build from source: https://github.com/felt/tippecanoe",
+            )
+        self._log_tippecanoe_version(tippecanoe_path)
+
         bbox: Optional[Tuple[float, float, float, float]] = None
         if bbox_str:
             bbox = parse_bbox(bbox_str)
@@ -169,29 +192,6 @@ class Command(BaseCommand):
 
         if feature_count == 0:
             raise CommandError("GeoJSON file contains no features")
-
-        tippecanoe_option = options.get("tippecanoe") or getattr(
-            settings, "TIPPECANOE_PATH", None
-        )
-        if tippecanoe_option:
-            tippecanoe_path = tippecanoe_option
-            if not Path(tippecanoe_path).exists():
-                raise CommandError(f"tippecanoe not found at: {tippecanoe_path}")
-        else:
-            tippecanoe_path = find_executable(
-                "tippecanoe",
-                [
-                    "/usr/local/bin/tippecanoe",
-                    "/usr/bin/tippecanoe",
-                    "/opt/homebrew/bin/tippecanoe",
-                ],
-                "tippecanoe is not installed or not in PATH.\n"
-                "Install it:\n"
-                "  Ubuntu/Debian: sudo apt-get install tippecanoe\n"
-                "  macOS: brew install tippecanoe\n"
-                "  Or build from source: https://github.com/felt/tippecanoe",
-            )
-        self._log_tippecanoe_version(tippecanoe_path)
 
         self.stdout.write(f"Converting to MBTiles (zoom {min_zoom}-{max_zoom})...")
         self.stdout.write(f"Output: {output_path.absolute()}")
@@ -244,15 +244,17 @@ class Command(BaseCommand):
             if force:
                 tippecanoe_cmd.insert(-1, "--force")
 
-            result = subprocess.run(
+            with subprocess.Popen(
                 tippecanoe_cmd,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
-                check=True,
-            )
-
-            if result.stdout:
-                self.stdout.write(result.stdout)
+            ) as proc:
+                for line in proc.stdout:
+                    self.stdout.write(line.rstrip())
+                proc.wait()
+                if proc.returncode != 0:
+                    raise subprocess.CalledProcessError(proc.returncode, tippecanoe_cmd)
 
             file_size = output_path.stat().st_size / (1024 * 1024)
             self.stdout.write(
@@ -262,8 +264,7 @@ class Command(BaseCommand):
             )
 
         except subprocess.CalledProcessError as e:
-            error_msg = e.stderr if e.stderr else str(e)
-            raise CommandError(f"tippecanoe failed: {error_msg}")
+            raise CommandError(f"tippecanoe failed with exit code {e.returncode}")
         except FileNotFoundError:
             raise CommandError(
                 "tippecanoe not found. Please install it:\n"
