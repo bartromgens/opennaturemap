@@ -80,9 +80,9 @@ export class ProtectionClassesComponent implements OnInit {
   constructor(private seo: SeoService) {}
 
   ngOnInit(): void {
-    const title = 'Protection Classes - OpenNatureMap';
+    const title = 'Protection Classes - OpenNatureMaps';
     const description =
-      'Learn about the IUCN protection levels used to classify nature reserves on OpenNatureMap.';
+      'Learn about the IUCN protection levels used to classify nature reserves on OpenNatureMaps.';
     const canonical = 'https://opennaturemaps.org/protection-classes';
     this.seo.setTitle(title);
     this.seo.setDescription(description);

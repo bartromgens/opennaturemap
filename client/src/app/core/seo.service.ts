@@ -3,7 +3,7 @@ import { DOCUMENT } from '@angular/common';
 import { Title, Meta } from '@angular/platform-browser';
 
 const BASE_URL = 'https://opennaturemaps.org';
-const DEFAULT_TITLE = 'OpenNatureMap - Nature reserves on an interactive map';
+const DEFAULT_TITLE = 'OpenNatureMaps - Nature reserves on an interactive map';
 const DEFAULT_DESCRIPTION = 'Browse nature reserves on an interactive map.';
 const DEFAULT_URL = `${BASE_URL}/`;
 const DEFAULT_OG_IMAGE = `${BASE_URL}/og-image.png`;

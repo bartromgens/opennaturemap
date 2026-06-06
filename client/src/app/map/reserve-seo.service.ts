@@ -12,7 +12,7 @@ export class ReserveSeoService {
 
   set(reserve: NatureReserveDetail): void {
     const name = reserve.name ?? reserve.id;
-    const title = `${name} - OpenNatureMap`;
+    const title = `${name} - OpenNatureMaps`;
     const description = this.buildDescription(reserve, name);
     const canonical = this.canonical(reserve.id);
 

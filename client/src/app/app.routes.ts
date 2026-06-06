@@ -3,7 +3,7 @@ import { Routes } from '@angular/router';
 export const routes: Routes = [
   {
     path: '',
-    title: 'OpenNatureMap - Nature reserves on an interactive map',
+    title: 'OpenNatureMaps - Nature reserves on an interactive map',
     data: {
       description: 'Browse nature reserves on an interactive map.',
       canonical: 'https://opennaturemaps.org/',
@@ -16,10 +16,10 @@ export const routes: Routes = [
   },
   {
     path: 'protection-classes',
-    title: 'Protection Classes - OpenNatureMap',
+    title: 'Protection Classes - OpenNatureMaps',
     data: {
       description:
-        'Learn about the IUCN protection levels used to classify nature reserves on OpenNatureMap.',
+        'Learn about the IUCN protection levels used to classify nature reserves on OpenNatureMaps.',
       canonical: 'https://opennaturemaps.org/protection-classes',
     },
     loadComponent: () =>
