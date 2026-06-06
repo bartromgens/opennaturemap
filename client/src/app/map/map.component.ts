@@ -5,6 +5,8 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { Subject, of } from 'rxjs';
 import { debounceTime, distinctUntilChanged, switchMap } from 'rxjs/operators';
+import { SeoService } from '../core/seo.service';
+import { ReserveSeoService } from './reserve-seo.service';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
@@ -123,6 +125,8 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     private router: Router,
     private http: HttpClient,
     private cdr: ChangeDetectorRef,
+    private seo: SeoService,
+    private reserveSeo: ReserveSeoService,
   ) {
     this.searchInput$
       .pipe(
@@ -164,6 +168,12 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     this.applySourceFromUrl();
     this.initMap();
     this.applyReserveFromUrl();
+
+    const hasReserve =
+      this.route.snapshot.paramMap.get('id') || this.route.snapshot.queryParamMap.get('reserve');
+    if (!hasReserve) {
+      this.seo.reset();
+    }
   }
 
   ngOnDestroy(): void {
@@ -203,15 +213,15 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   }
 
   protected selectSearchResult(item: NatureReserveListItem): void {
-    this.loadReserve(item.id, true);
     this.searchQuery = '';
     this.searchResults = [];
+    this.loadReserve(item.id, true);
   }
 
   protected selectReserveAtPoint(item: NatureReserveListItem): void {
-    this.loadReserve(item.id);
     this.reservesAtPoint = [];
     this.pickerPosition = null;
+    this.loadReserve(item.id);
   }
 
   protected closeReservePicker(): void {
@@ -403,23 +413,22 @@ export class MapComponent implements AfterViewInit, OnDestroy {
       lat: center.lat.toFixed(5),
       lng: center.lng.toFixed(5),
       zoom,
+      protection_level: this.selectedProtectionLevel,
+      source: this.selectedSource,
+      operator: this.selectedOperatorId ?? null,
     };
+
     if (this.selectedReserve) {
-      queryParams['reserve'] = this.selectedReserve.id;
-    }
-    queryParams['protection_level'] = this.selectedProtectionLevel;
-    if (this.selectedOperatorId != null) {
-      queryParams['operator'] = this.selectedOperatorId;
+      this.router.navigate(['/reserve', this.selectedReserve.id], {
+        queryParams: queryParams as Record<string, string | number>,
+        replaceUrl: true,
+      });
     } else {
-      queryParams['operator'] = null;
+      this.router.navigate(['/'], {
+        queryParams: queryParams as Record<string, string | number>,
+        replaceUrl: true,
+      });
     }
-    queryParams['source'] = this.selectedSource;
-    this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: queryParams as Record<string, string | number>,
-      queryParamsHandling: 'merge',
-      replaceUrl: true,
-    });
   }
 
   private removeHighlightLayer(): void {
@@ -481,7 +490,9 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   }
 
   private applyReserveFromUrl(): void {
-    const reserveId = this.route.snapshot.queryParamMap.get('reserve');
+    const pathId = this.route.snapshot.paramMap.get('id');
+    const queryId = this.route.snapshot.queryParamMap.get('reserve');
+    const reserveId = pathId ?? queryId;
     if (reserveId) {
       this.loadReserve(reserveId, true);
     }
@@ -523,6 +534,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
           this.fitMapToReserve(reserve.geometry);
         }
         this.updateUrlFromMap();
+        this.applyReserveSeo(reserve);
         this.cdr.detectChanges();
       },
       error: (err) => {
@@ -534,6 +546,10 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     });
   }
 
+  private applyReserveSeo(reserve: NatureReserveDetail): void {
+    this.reserveSeo.set(reserve);
+  }
+
   protected closeSidebar(): void {
     this.sidebarExpanded = false;
     this.selectedReserve = null;
@@ -541,6 +557,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     this.reservesAtPoint = [];
     this.pickerPosition = null;
     this.removeHighlightLayer();
+    this.seo.reset();
     if (this.map) {
       const center = this.map.getCenter();
       const zoom = this.map.getZoom();
@@ -550,14 +567,10 @@ export class MapComponent implements AfterViewInit, OnDestroy {
         zoom,
         protection_level: this.selectedProtectionLevel,
         source: this.selectedSource,
+        operator: this.selectedOperatorId ?? null,
       };
-      if (this.selectedOperatorId != null) {
-        queryParams['operator'] = this.selectedOperatorId;
-      }
-      this.router.navigate([], {
-        relativeTo: this.route,
+      this.router.navigate(['/'], {
         queryParams: queryParams as Record<string, string | number>,
-        queryParamsHandling: '',
         replaceUrl: true,
       });
     }

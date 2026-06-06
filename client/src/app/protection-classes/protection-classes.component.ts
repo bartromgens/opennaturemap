@@ -1,10 +1,11 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatIconModule } from '@angular/material/icon';
 
 import { PROTECTION_LEVEL_OPTIONS } from '../map/protection-class';
+import { SeoService } from '../core/seo.service';
 
 export interface ProtectionCategoryInfo {
   value: string;
@@ -68,11 +69,25 @@ const CATEGORY_DESCRIPTIONS: Record<string, { osmValues: string; description: st
   templateUrl: './protection-classes.component.html',
   styleUrl: './protection-classes.component.css',
 })
-export class ProtectionClassesComponent {
+export class ProtectionClassesComponent implements OnInit {
   protected categories: ProtectionCategoryInfo[] = PROTECTION_LEVEL_OPTIONS.map((opt) => ({
     value: opt.value,
     label: opt.label,
     osmValues: CATEGORY_DESCRIPTIONS[opt.value]?.osmValues ?? '—',
     description: CATEGORY_DESCRIPTIONS[opt.value]?.description ?? '',
   }));
+
+  constructor(private seo: SeoService) {}
+
+  ngOnInit(): void {
+    const title = 'Protection Classes - OpenNatureMap';
+    const description =
+      'Learn about the IUCN protection levels used to classify nature reserves on OpenNatureMap.';
+    const canonical = 'https://opennaturemaps.org/protection-classes';
+    this.seo.setTitle(title);
+    this.seo.setDescription(description);
+    this.seo.setCanonical(canonical);
+    this.seo.setOpenGraph({ title, description, url: canonical });
+    this.seo.clearJsonLd();
+  }
 }
