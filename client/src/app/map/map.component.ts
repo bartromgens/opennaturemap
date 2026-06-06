@@ -1,6 +1,6 @@
 import { Component, AfterViewInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { ActivatedRoute, Router } from '@angular/router';
+import { CommonModule, Location } from '@angular/common';
+import { ActivatedRoute } from '@angular/router';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { Subject, of } from 'rxjs';
@@ -122,7 +122,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
 
   constructor(
     private route: ActivatedRoute,
-    private router: Router,
+    private location: Location,
     private http: HttpClient,
     private cdr: ChangeDetectorRef,
     private seo: SeoService,
@@ -409,26 +409,19 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     if (!this.map) return;
     const center = this.map.getCenter();
     const zoom = this.map.getZoom();
-    const queryParams: Record<string, string | number | null> = {
-      lat: center.lat.toFixed(5),
-      lng: center.lng.toFixed(5),
-      zoom,
-      protection_level: this.selectedProtectionLevel,
-      source: this.selectedSource,
-      operator: this.selectedOperatorId ?? null,
-    };
+    const path = this.selectedReserve ? `/reserve/${this.selectedReserve.id}` : '/';
+    this.location.replaceState(path, this.buildQueryString(center, zoom));
+  }
 
-    if (this.selectedReserve) {
-      this.router.navigate(['/reserve', this.selectedReserve.id], {
-        queryParams: queryParams as Record<string, string | number>,
-        replaceUrl: true,
-      });
-    } else {
-      this.router.navigate(['/'], {
-        queryParams: queryParams as Record<string, string | number>,
-        replaceUrl: true,
-      });
-    }
+  private buildQueryString(center: L.LatLng, zoom: number): string {
+    const params = new URLSearchParams();
+    params.set('lat', center.lat.toFixed(5));
+    params.set('lng', center.lng.toFixed(5));
+    params.set('zoom', String(zoom));
+    if (this.selectedProtectionLevel) params.set('protection_level', this.selectedProtectionLevel);
+    if (this.selectedSource) params.set('source', this.selectedSource);
+    if (this.selectedOperatorId != null) params.set('operator', String(this.selectedOperatorId));
+    return params.toString();
   }
 
   private removeHighlightLayer(): void {
@@ -559,20 +552,10 @@ export class MapComponent implements AfterViewInit, OnDestroy {
     this.removeHighlightLayer();
     this.seo.reset();
     if (this.map) {
-      const center = this.map.getCenter();
-      const zoom = this.map.getZoom();
-      const queryParams: Record<string, string | number | null> = {
-        lat: center.lat.toFixed(5),
-        lng: center.lng.toFixed(5),
-        zoom,
-        protection_level: this.selectedProtectionLevel,
-        source: this.selectedSource,
-        operator: this.selectedOperatorId ?? null,
-      };
-      this.router.navigate(['/'], {
-        queryParams: queryParams as Record<string, string | number>,
-        replaceUrl: true,
-      });
+      this.location.replaceState(
+        '/',
+        this.buildQueryString(this.map.getCenter(), this.map.getZoom()),
+      );
     }
   }
 }
