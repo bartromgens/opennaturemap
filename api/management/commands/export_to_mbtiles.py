@@ -27,8 +27,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--min-zoom",
             type=int,
-            default=0,
-            help="Minimum zoom level (default: 0)",
+            default=getattr(settings, "VECTOR_TILE_MIN_ZOOM", 4),
+            help=f"Minimum zoom level (default: {getattr(settings, 'VECTOR_TILE_MIN_ZOOM', 4)})",
         )
         parser.add_argument(
             "--max-zoom",
@@ -48,18 +48,32 @@ class Command(BaseCommand):
             help="Overwrite output file if it exists",
         )
         parser.add_argument(
+            "--maximum-tile-bytes",
+            type=int,
+            default=300_000,
+            metavar="BYTES",
+            help="Max size per tile in bytes (default: 300000).",
+        )
+        parser.add_argument(
             "--low-detail",
             type=int,
-            default=10,
+            default=12,
             metavar="DETAIL",
-            help="Detail at lower zoom levels (default: 10, lower = smaller tiles).",
+            help="Detail (resolution) at zoom levels below max zoom; lower = smaller tiles (default: 12).",
+        )
+        parser.add_argument(
+            "--minimum-detail",
+            type=int,
+            default=6,
+            metavar="DETAIL",
+            help="Minimum detail to try when a tile exceeds size limit (default: 6).",
         )
         parser.add_argument(
             "--simplification",
             type=float,
-            default=10.0,
+            default=30.0,
             metavar="SCALE",
-            help="Simplification scale multiplier (default: 10.0 for faster low-zoom rendering).",
+            help="Simplification scale multiplier; higher = more aggressive simplification (default: 30.0).",
         )
         parser.add_argument(
             "--no-coalesce",
@@ -89,7 +103,9 @@ class Command(BaseCommand):
         max_zoom = options["max_zoom"]
         layer_name = options["layer_name"]
         force = options["force"]
+        maximum_tile_bytes = options["maximum_tile_bytes"]
         low_detail = options["low_detail"]
+        minimum_detail = options["minimum_detail"]
         simplification = options["simplification"]
         no_coalesce = options["no_coalesce"]
         no_drop_smallest = options["no_drop_smallest"]
@@ -135,7 +151,9 @@ class Command(BaseCommand):
                 "max_zoom": max_zoom,
                 "layer_name": layer_name,
                 "force": force,
+                "maximum_tile_bytes": maximum_tile_bytes,
                 "low_detail": low_detail,
+                "minimum_detail": minimum_detail,
                 "simplification": simplification,
                 "no_coalesce": no_coalesce,
                 "no_drop_smallest": no_drop_smallest,

@@ -24,11 +24,13 @@ import { environment } from '../../environments/environment';
 
 const DEFAULT_CENTER: L.LatLngTuple = [52.0907, 5.1214];
 const DEFAULT_ZOOM = 11;
+const DEFAULT_MIN_NATIVE_ZOOM = 4;
 const DEFAULT_MAX_NATIVE_ZOOM = 13;
 const API_BASE = '/api';
 const VECTOR_TILE_URL = environment.vectorTileUrl;
 
 interface AppConfig {
+  vector_tile_min_zoom: number;
   vector_tile_max_zoom: number;
 }
 
@@ -103,6 +105,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   private vectorTileLayer: L.Layer | null = null;
   private highlightLayer: L.Layer | null = null;
   private searchInput$ = new Subject<string>();
+  private minNativeZoom = DEFAULT_MIN_NATIVE_ZOOM;
   private maxNativeZoom = DEFAULT_MAX_NATIVE_ZOOM;
 
   protected operators: OperatorOption[] = [];
@@ -232,6 +235,7 @@ export class MapComponent implements AfterViewInit, OnDestroy {
   private loadConfig(): void {
     this.http.get<AppConfig>(`${API_BASE}/config/`).subscribe({
       next: (config) => {
+        this.minNativeZoom = config.vector_tile_min_zoom ?? DEFAULT_MIN_NATIVE_ZOOM;
         this.maxNativeZoom = config.vector_tile_max_zoom ?? DEFAULT_MAX_NATIVE_ZOOM;
         this.updateVectorTileLayer();
       },
@@ -292,7 +296,9 @@ export class MapComponent implements AfterViewInit, OnDestroy {
         nature_reserves: styleFn,
       },
       interactive: true,
+      minNativeZoom: this.minNativeZoom,
       maxNativeZoom: this.maxNativeZoom,
+      updateWhenZooming: false,
       getFeatureId: (f: { properties: { id?: string; osm_id?: string } }) =>
         f.properties.id ?? String(f.properties.osm_id ?? ''),
     });

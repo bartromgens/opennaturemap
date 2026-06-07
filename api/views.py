@@ -53,6 +53,7 @@ def protection_level_q_filter(protection_level: str) -> Q:
 def config_view(request):
     return Response(
         {
+            "vector_tile_min_zoom": getattr(settings, "VECTOR_TILE_MIN_ZOOM", 4),
             "vector_tile_max_zoom": getattr(settings, "VECTOR_TILE_MAX_ZOOM", 13),
         }
     )

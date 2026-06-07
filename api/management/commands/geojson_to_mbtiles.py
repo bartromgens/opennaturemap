@@ -31,8 +31,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--min-zoom",
             type=int,
-            default=0,
-            help="Minimum zoom level (default: 0)",
+            default=getattr(settings, "VECTOR_TILE_MIN_ZOOM", 4),
+            help=f"Minimum zoom level (default: {getattr(settings, 'VECTOR_TILE_MIN_ZOOM', 4)})",
         )
         parser.add_argument(
             "--max-zoom",
@@ -54,9 +54,9 @@ class Command(BaseCommand):
         parser.add_argument(
             "--maximum-tile-bytes",
             type=int,
-            default=500_000,
+            default=300_000,
             metavar="BYTES",
-            help="Max size per tile in bytes (default: 500000). Tippecanoe default is 500000; increase if tiles exceed limit.",
+            help="Max size per tile in bytes (default: 300000). Tippecanoe default is 500000; increase if tiles exceed limit.",
         )
         parser.add_argument(
             "--low-detail",
@@ -68,16 +68,16 @@ class Command(BaseCommand):
         parser.add_argument(
             "--minimum-detail",
             type=int,
-            default=7,
+            default=6,
             metavar="DETAIL",
-            help="Minimum detail to try when a tile exceeds size limit; lower = more reduction allowed (default: 7, tippecanoe default 7).",
+            help="Minimum detail to try when a tile exceeds size limit; lower = more reduction allowed (default: 6, tippecanoe default 7).",
         )
         parser.add_argument(
             "--simplification",
             type=float,
-            default=1.0,
+            default=30.0,
             metavar="SCALE",
-            help="Simplification scale multiplier; higher = more aggressive simplification (default: 1.0).",
+            help="Simplification scale multiplier; higher = more aggressive simplification (default: 30.0).",
         )
         parser.add_argument(
             "--no-coalesce",
